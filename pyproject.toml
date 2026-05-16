@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hoad-python-packages"
+version = "1.0.0"
+description = "Hoad Python Packages - PEP 503 compliant index"
+authors = [{name = "Hoad", email = "team@hoad.org"}]
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Software Distribution",
+]
