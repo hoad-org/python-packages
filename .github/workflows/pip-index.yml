@@ -1,0 +1,100 @@
+name: Generate PEP 503 Index
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  generate-index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install wheel twine
+
+      - name: Generate PEP 503 compliant index
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import quote
+
+          packages_dir = Path('packages')
+          index_html = '''<!DOCTYPE html>
+          <html>
+            <head>
+              <title>Hoad Python Packages</title>
+              <meta charset="utf-8">
+              <meta name="api-version" value="2">
+            </head>
+            <body>
+              <h1>Hoad Python Packages Index</h1>
+          '''
+
+          # Generate index for each package
+          for package_dir in sorted(packages_dir.iterdir()):
+              if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                  continue
+
+              metadata_file = package_dir / 'metadata.json'
+              if metadata_file.exists():
+                  with open(metadata_file) as f:
+                      metadata = json.load(f)
+
+                  pkg_name = metadata['name'].lower().replace('_', '-')
+                  index_html += f'<a href="/python-packages/{pkg_name}/">{pkg_name}</a><br/>\n'
+
+          index_html += '''            </body>
+          </html>
+          '''
+
+          # Create index directory
+          Path('index').mkdir(exist_ok=True)
+          Path('index.html').write_text(index_html)
+
+          # Create per-package indexes
+          for package_dir in sorted(packages_dir.iterdir()):
+              if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                  continue
+
+              pkg_html = f'''<!DOCTYPE html>
+          <html>
+            <head>
+              <title>{package_dir.name}</title>
+              <meta charset="utf-8">
+              <meta name="api-version" value="2">
+            </head>
+            <body>
+              <h1>{package_dir.name}</h1>
+          '''
+
+              for file in sorted(package_dir.glob('*.whl')) + sorted(package_dir.glob('*.tar.gz')):
+                  pkg_html += f'      <a href="/python-packages/{package_dir.name}/{file.name}">{file.name}</a><br/>\n'
+
+              pkg_html += '''            </body>
+          </html>
+          '''
+
+              pkg_index_dir = Path('simple') / package_dir.name.lower().replace('_', '-')
+              pkg_index_dir.mkdir(parents=True, exist_ok=True)
+              (pkg_index_dir / 'index.html').write_text(pkg_html)
+
+        shell: python3 {0}
+
+      - name: Commit changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add index.html simple/
+          git commit -m "chore: regenerate PEP 503 index" || echo "No changes to commit"
+          git push
