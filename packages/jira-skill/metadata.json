@@ -1,0 +1,11 @@
+{
+  "name": "jira-skill",
+  "version": "2.0.1",
+  "repository": "https://github.com/hoad-org/jira-skill",
+  "published_at": "2026-05-16T23:00:00Z",
+  "python_requires": ">=3.9",
+  "distributions": [
+    "jira_skill-2.0.1-py3-none-any.whl",
+    "jira_skill-2.0.1.tar.gz"
+  ]
+}
