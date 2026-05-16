@@ -1,7 +1,7 @@
 {
   "name": "github-skill",
   "version": "1.0.0",
-  "repository": "https://github.com/hoad-org/github-skill",
+  "repository": "https://github.com/hoad-org/claude-github-skill",
   "published_at": "2026-05-16T23:30:00Z",
   "python_requires": ">=3.9",
   "distributions": [
