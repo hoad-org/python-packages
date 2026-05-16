@@ -1,0 +1,11 @@
+{
+  "name": "github-skill",
+  "version": "1.0.0",
+  "repository": "https://github.com/hoad-org/github-skill",
+  "published_at": "2026-05-16T23:30:00Z",
+  "python_requires": ">=3.9",
+  "distributions": [
+    "github_skill-1.0.0-py3-none-any.whl",
+    "github_skill-1.0.0.tar.gz"
+  ]
+}
