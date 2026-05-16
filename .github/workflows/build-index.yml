@@ -30,15 +30,16 @@ jobs:
           packages_data = []
 
           # Scan packages directory
-          for package_dir in packages_dir.iterdir():
-              if not package_dir.is_dir() or package_dir.name == '__pycache__':
-                  continue
+          if packages_dir.exists():
+              for package_dir in packages_dir.iterdir():
+                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                      continue
 
-              metadata_file = package_dir / 'metadata.json'
-              if metadata_file.exists():
-                  with open(metadata_file) as f:
-                      metadata = json.load(f)
-                      packages_data.append(metadata)
+                  metadata_file = package_dir / 'metadata.json'
+                  if metadata_file.exists():
+                      with open(metadata_file) as f:
+                          metadata = json.load(f)
+                          packages_data.append(metadata)
 
           # Generate packages.md
           packages_md = '''# Available Packages
@@ -68,6 +69,7 @@ Published: {pkg.get('published_at', 'unknown')}
 
           packages_md += f"*This page is maintained automatically. Last updated: {datetime.utcnow().isoformat()}Z*"
 
+          Path('docs').mkdir(exist_ok=True)
           Path('docs/packages.md').write_text(packages_md)
 
         shell: python3 {0}
@@ -78,11 +80,10 @@ Published: {pkg.get('published_at', 'unknown')}
           git config user.email "actions@github.com"
           git add docs/packages.md
           git commit -m "chore: auto-update package index" || echo "No changes to commit"
-          git push
+          git push || echo "Nothing to push"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
-          cname: hoad-org.github.io

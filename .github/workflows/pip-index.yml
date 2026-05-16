@@ -42,17 +42,18 @@ jobs:
           '''
 
           # Generate index for each package
-          for package_dir in sorted(packages_dir.iterdir()):
-              if not package_dir.is_dir() or package_dir.name == '__pycache__':
-                  continue
+          if packages_dir.exists():
+              for package_dir in sorted(packages_dir.iterdir()):
+                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                      continue
 
-              metadata_file = package_dir / 'metadata.json'
-              if metadata_file.exists():
-                  with open(metadata_file) as f:
-                      metadata = json.load(f)
+                  metadata_file = package_dir / 'metadata.json'
+                  if metadata_file.exists():
+                      with open(metadata_file) as f:
+                          metadata = json.load(f)
 
-                  pkg_name = metadata['name'].lower().replace('_', '-')
-                  index_html += f'<a href="/python-packages/{pkg_name}/">{pkg_name}</a><br/>\n'
+                      pkg_name = metadata['name'].lower().replace('_', '-')
+                      index_html += f'<a href="/python-packages/{pkg_name}/">{pkg_name}</a><br/>\n'
 
           index_html += '''            </body>
           </html>
@@ -63,11 +64,12 @@ jobs:
           Path('index.html').write_text(index_html)
 
           # Create per-package indexes
-          for package_dir in sorted(packages_dir.iterdir()):
-              if not package_dir.is_dir() or package_dir.name == '__pycache__':
-                  continue
+          if packages_dir.exists():
+              for package_dir in sorted(packages_dir.iterdir()):
+                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                      continue
 
-              pkg_html = f'''<!DOCTYPE html>
+                  pkg_html = f'''<!DOCTYPE html>
           <html>
             <head>
               <title>{package_dir.name}</title>
@@ -78,16 +80,16 @@ jobs:
               <h1>{package_dir.name}</h1>
           '''
 
-              for file in sorted(package_dir.glob('*.whl')) + sorted(package_dir.glob('*.tar.gz')):
-                  pkg_html += f'      <a href="/python-packages/{package_dir.name}/{file.name}">{file.name}</a><br/>\n'
+                  for file in sorted(package_dir.glob('*.whl')) + sorted(package_dir.glob('*.tar.gz')):
+                      pkg_html += f'      <a href="/python-packages/{package_dir.name}/{file.name}">{file.name}</a><br/>\n'
 
-              pkg_html += '''            </body>
+                  pkg_html += '''            </body>
           </html>
           '''
 
-              pkg_index_dir = Path('simple') / package_dir.name.lower().replace('_', '-')
-              pkg_index_dir.mkdir(parents=True, exist_ok=True)
-              (pkg_index_dir / 'index.html').write_text(pkg_html)
+                  pkg_index_dir = Path('simple') / package_dir.name.lower().replace('_', '-')
+                  pkg_index_dir.mkdir(parents=True, exist_ok=True)
+                  (pkg_index_dir / 'index.html').write_text(pkg_html)
 
         shell: python3 {0}
 
@@ -95,6 +97,6 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add index.html simple/
+          git add -A
           git commit -m "chore: regenerate PEP 503 index" || echo "No changes to commit"
-          git push
+          git push || echo "Nothing to push"
