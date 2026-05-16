@@ -21,8 +21,11 @@ claude-github-skill
 
 | Package | Version | Python | Repository |
 |---------|---------|--------|------------|
-| jira-skill | 2.0.1 | >=3.9 | [github.com/hoad-org/jira-skill](https://github.com/hoad-org/jira-skill) |
 | confluence-skill | 1.3.1 | >=3.12 | [github.com/hoad-org/confluence-skill](https://github.com/hoad-org/confluence-skill) |
+| github-skill | 1.0.0 | >=3.9 | [github.com/hoad-org/github-skill](https://github.com/hoad-org/github-skill) |
+| green-skill | 1.0.0 | >=3.9 | [github.com/hoad-org/green-skill](https://github.com/hoad-org/green-skill) |
+| jira-skill | 2.0.1 | >=3.9 | [github.com/hoad-org/jira-skill](https://github.com/hoad-org/jira-skill) |
+| prcheck-skill | 1.0.0 | >=3.9 | [github.com/hoad-org/prcheck-skill](https://github.com/hoad-org/prcheck-skill) |
 
 For detailed information, see [packages/](packages/) directory.
 
