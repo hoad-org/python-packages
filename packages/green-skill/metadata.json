@@ -1,0 +1,11 @@
+{
+  "name": "green-skill",
+  "version": "1.0.0",
+  "repository": "https://github.com/hoad-org/green-skill",
+  "published_at": "2026-05-16T23:30:00Z",
+  "python_requires": ">=3.9",
+  "distributions": [
+    "green_skill-1.0.0-py3-none-any.whl",
+    "green_skill-1.0.0.tar.gz"
+  ]
+}
