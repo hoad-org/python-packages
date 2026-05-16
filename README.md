@@ -19,7 +19,12 @@ claude-github-skill
 
 ## Available Packages
 
-See [packages/](packages/) directory for available packages and versions.
+| Package | Version | Python | Repository |
+|---------|---------|--------|------------|
+| jira-skill | 2.0.1 | >=3.9 | [github.com/hoad-org/jira-skill](https://github.com/hoad-org/jira-skill) |
+| confluence-skill | 1.3.1 | >=3.12 | [github.com/hoad-org/confluence-skill](https://github.com/hoad-org/confluence-skill) |
+
+For detailed information, see [packages/](packages/) directory.
 
 ## Publishing a Package
 
