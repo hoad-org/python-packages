@@ -1,0 +1,11 @@
+{
+  "name": "parallelize-task",
+  "version": "1.0.0",
+  "repository": "https://github.com/hoad-org/claude-skill-parallelize-task",
+  "published_at": "2026-05-16T23:45:00Z",
+  "python_requires": ">=3.9",
+  "distributions": [
+    "claude_skill_parallelize_task-1.0.0-py3-none-any.whl",
+    "claude_skill_parallelize_task-1.0.0.tar.gz"
+  ]
+}
