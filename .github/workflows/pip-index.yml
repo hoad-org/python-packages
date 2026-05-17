@@ -53,7 +53,7 @@ jobs:
                           metadata = json.load(f)
 
                       pkg_name = metadata['name'].lower().replace('_', '-')
-                      index_html += f'<a href="/python-packages/{pkg_name}/">{pkg_name}</a><br/>\n'
+                      index_html += f'<a href="/python-packages/packages/{pkg_name}/">{pkg_name}</a><br/>\n'
 
           index_html += '''            </body>
           </html>
@@ -81,7 +81,7 @@ jobs:
           '''
 
                   for file in sorted(package_dir.glob('*.whl')) + sorted(package_dir.glob('*.tar.gz')):
-                      pkg_html += f'      <a href="/python-packages/{package_dir.name}/{file.name}">{file.name}</a><br/>\n'
+                      pkg_html += f'      <a href="/python-packages/packages/{package_dir.name}/{file.name}">{file.name}</a><br/>\n'
 
                   pkg_html += '''            </body>
           </html>
