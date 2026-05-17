@@ -1,0 +1,297 @@
+# DevArmor Development Environment Policy
+#
+# Permissive policy for development/staging environments.
+# Applied to: staging deployments only
+#
+# Key Differences from Production:
+#   - NO cost limits (unlimited API calls)
+#   - Relaxed rate limiting: 1000 API calls/minute per skill
+#   - Extended timeouts: 60 seconds max per operation
+#   - Notifications disabled (reduce noise)
+#   - Approval gates relaxed
+#   - Expanded external API allowlist
+#
+# Usage:
+#   devarmor policy deploy ./development.yaml --environment=staging
+#   devarmor policy test development --skill=github --stage=staging
+
+name: DevelopmentEnvironmentPolicy
+version: "1.0.0"
+description: |
+  Permissive policy for development and staging environments.
+
+  Differences from production:
+  - No cost limits (unlimited testing)
+  - Rate limit: 1000 API calls/minute per skill
+  - Operation timeout: 60 seconds
+  - Notifications disabled for dev
+  - Approval gates relaxed
+  - Extended external API allowlist
+  - Looser data retention requirements
+
+  Applied to: staging, dev, test environments only
+  Environment filter: NOT production AND NOT preproduction
+
+enabled: true
+priority: 50  # Lower priority allows testing
+
+# Development environment constraints
+constraints:
+  # Development: unlimited cost (no enforcement)
+  - name: DevelopmentNoCostLimit
+    rule: |
+      environment in ["dev", "staging", "test"]
+    action: allow
+    message: "Development environment: no cost limits"
+    tags: [development, cost-disabled]
+    enabled: true
+
+  # Relaxed rate limiting for development
+  - name: DevelopmentRateLimit
+    rule: |
+      environment in ["dev", "staging", "test"] AND skill.${skill_name}.api_calls_this_minute >= 1000
+    action: rate_limit
+    message: "Development rate limit: 1000 calls/minute per skill"
+    rate_limit:
+      requests_per_minute: 1000
+      burst_size: 100
+    tags: [rate-limit, development]
+    enabled: true
+
+  # Extended timeout for development (60 seconds)
+  - name: DevelopmentTimeoutLimit
+    rule: |
+      environment in ["dev", "staging", "test"] AND operation.estimated_duration_seconds > 60
+    action: deny
+    message: |
+      Development timeout exceeded (60 seconds max).
+      Estimated: ${operation.estimated_duration_seconds}s
+    tags: [timeout, development]
+    enabled: true
+
+  # Relaxed approval requirements for development
+  - name: DevelopmentBulkUpdateApproval
+    rule: |
+      environment in ["dev", "staging", "test"] AND operation_type == "bulk_update"
+    action: allow
+    message: "Development: bulk updates allowed without approval"
+    tags: [development, approval-relaxed]
+    enabled: true
+
+  # Allow all external API calls in development
+  - name: DevelopmentAllowExternalAPIs
+    rule: |
+      environment in ["dev", "staging", "test"] AND is_external_api_call == true
+    action: allow
+    message: "Development: external API calls allowed"
+    tags: [development, external-api]
+    enabled: true
+
+  # Disable MFA requirement for development credentials
+  - name: DevelopmentCredentialChanges
+    rule: |
+      environment in ["dev", "staging", "test"] AND action in ["rotate_credential", "change_password"]
+    action: allow
+    message: "Development: credential changes allowed without MFA"
+    tags: [development, credentials]
+    enabled: true
+
+  # Disable notifications in development
+  - name: DevelopmentDisableNotifications
+    rule: |
+      environment in ["dev", "staging", "test"] AND notification_enabled == true
+    action: suppress
+    message: "Development: notifications suppressed"
+    tags: [development, notifications]
+    enabled: true
+
+  # Allow concurrent sessions from same user
+  - name: DevelopmentAllowConcurrentSessions
+    rule: |
+      environment in ["dev", "staging", "test"]
+    action: allow
+    message: "Development: concurrent sessions allowed"
+    tags: [development, sessions]
+    enabled: true
+
+  # Relaxed data retention for development
+  - name: DevelopmentMinimalRetention
+    rule: |
+      environment in ["dev", "staging", "test"]
+    action: allow
+    message: "Development: minimal retention requirements"
+    tags: [development, retention]
+    enabled: true
+
+  # Allow test data with loose classification
+  - name: DevelopmentTestData
+    rule: |
+      environment in ["dev", "staging", "test"] AND is_test_data == true
+    action: allow
+    message: "Development: test data operations allowed"
+    tags: [development, test-data]
+    enabled: true
+
+# Skill-specific development limits
+skill_limits:
+  github:
+    api_rate_limit_per_minute: 1000
+    operation_timeout_seconds: 60
+    cost_limit_enabled: false
+    approval_required: false
+    external_apis_allowed: true
+
+  confluence:
+    api_rate_limit_per_minute: 1000
+    operation_timeout_seconds: 60
+    cost_limit_enabled: false
+    approval_required: false
+    external_apis_allowed: true
+
+  jira:
+    api_rate_limit_per_minute: 1000
+    operation_timeout_seconds: 60
+    cost_limit_enabled: false
+    approval_required: false
+    external_apis_allowed: true
+
+  green:
+    api_rate_limit_per_minute: 1000
+    operation_timeout_seconds: 60
+    cost_limit_enabled: false
+    approval_required: false
+    external_apis_allowed: true
+
+  prcheck:
+    api_rate_limit_per_minute: 1000
+    operation_timeout_seconds: 60
+    cost_limit_enabled: false
+    approval_required: false
+    external_apis_allowed: true
+
+# Development environment configuration
+environment_config:
+  dev:
+    description: "Local development machine"
+    cost_limits_enabled: false
+    approval_gates_enabled: false
+    notifications_enabled: false
+    audit_logging_enabled: true
+    retention_days: 7
+    external_api_whitelist_strict: false
+
+  staging:
+    description: "Staging/test environment"
+    cost_limits_enabled: false
+    approval_gates_enabled: false
+    notifications_enabled: false
+    audit_logging_enabled: true
+    retention_days: 30
+    external_api_whitelist_strict: false
+
+  test:
+    description: "Automated test environment"
+    cost_limits_enabled: false
+    approval_gates_enabled: false
+    notifications_enabled: false
+    audit_logging_enabled: false
+    retention_days: 1
+    external_api_whitelist_strict: false
+
+# Extended external domain allowlist for development
+allowed_external_domains:
+  # Production domains
+  - "github.com"
+  - "api.github.com"
+  - "jira.atlassian.net"
+  - "confluence.atlassian.net"
+  - "slack.com"
+  - "api.slack.com"
+  # Development/testing domains
+  - "localhost"
+  - "127.0.0.1"
+  - "*.local"
+  - "*.test"
+  - "*.dev"
+  - "127.0.0.1:*"
+  - "localhost:*"
+  # Mock/stub services
+  - "mockito.local"
+  - "wiremock.local"
+  - "postman-echo.com"
+  - "httpbin.org"
+  - "jsonplaceholder.typicode.com"
+
+# Development notification configuration
+notifications:
+  enabled: false
+  channels: []
+  error_reporting: true  # Still report critical errors
+  verbose_logging: true
+
+# Testing features
+testing:
+  test_mode_enabled: true
+  allow_dry_run: true
+  allow_sandbox_operations: true
+  allow_mock_apis: true
+  capture_detailed_logs: true
+  performance_profiling_enabled: true
+
+# Test case scenarios
+test_cases:
+  - name: "Development: unlimited API calls - allow"
+    input:
+      environment: staging
+      skill_name: github
+      api_calls_this_minute: 5000
+    expected: ALLOW
+
+  - name: "Development: bulk update without approval - allow"
+    input:
+      environment: dev
+      operation_type: bulk_update
+      affected_resources: 100
+      approval_granted: false
+    expected: ALLOW
+
+  - name: "Development: extended timeout - allow at 60s"
+    input:
+      environment: staging
+      operation_estimated_duration_seconds: 60
+    expected: ALLOW
+
+  - name: "Development: credential change without MFA - allow"
+    input:
+      environment: dev
+      action: rotate_credential
+      mfa_verified: false
+    expected: ALLOW
+
+  - name: "Development: external API call - allow"
+    input:
+      environment: staging
+      is_external_api_call: true
+      target_domain: httpbin.org
+    expected: ALLOW
+
+  - name: "Development: localhost access - allow"
+    input:
+      environment: dev
+      target_domain: localhost:8080
+      is_external_api_call: true
+    expected: ALLOW
+
+  - name: "Development: test data operations - allow"
+    input:
+      environment: staging
+      is_test_data: true
+      operation_type: delete
+    expected: ALLOW
+
+  - name: "Development: concurrent sessions - allow"
+    input:
+      environment: dev
+      actor_concurrent_sessions: 5
+      actor_ip_addresses_distinct: 3
+    expected: ALLOW

@@ -1,0 +1,253 @@
+# DevArmor Cost Control Policy
+#
+# Enforces strict cost limits across all deployed skills.
+# Applied to: github, confluence, green, prcheck, jira
+#
+# Budget Structure:
+#   Development: $30/month (no enforcement)
+#   Production: $30/month (strict enforcement)
+#   per-skill: 100 API calls/minute
+#   operation timeout: 30 seconds max
+#
+# Usage:
+#   devarmor policy deploy ./cost_control.yaml
+#   devarmor policy test cost_control --skill=github --estimated-cost=5.00
+
+name: CostControlPolicy
+version: "1.0.0"
+description: |
+  Production cost control enforcement across all skills.
+
+  Limits:
+  - Global monthly: $30.00 USD
+  - Per-skill API calls: 100/minute
+  - Per-operation timeout: 30 seconds
+  - Warning threshold: 80% of limit
+
+  Applied to: github, confluence, green, prcheck, jira
+
+enabled: true
+priority: 100
+
+# Cost control constraints
+constraints:
+  # Global monthly budget enforcement
+  - name: GlobalMonthlyBudgetLimit
+    rule: |
+      organization.monthly_spend <= 3000
+    action: deny
+    message: |
+      Global monthly budget exceeded.
+      Limit: $30.00 USD
+      Current: $${organization.monthly_spend / 100}
+    tags: [cost-control, global, billing]
+    enabled: true
+
+  # Per-skill monthly limit (shared pool)
+  - name: PerSkillMonthlyLimit
+    rule: |
+      skill.${skill_name}.monthly_spend <= 500
+    action: deny
+    message: |
+      Skill ${skill_name} monthly limit exceeded.
+      Limit: $5.00 USD per skill
+      Current: $${skill.${skill_name}.monthly_spend / 100}
+    tags: [cost-control, per-skill]
+    enabled: true
+
+  # API call rate limiting (100 calls/minute per skill)
+  - name: APICallRateLimit
+    rule: |
+      skill.${skill_name}.api_calls_this_minute >= 100
+    action: rate_limit
+    message: "API rate limit reached (100 calls/minute per skill)"
+    rate_limit:
+      requests_per_minute: 100
+      burst_size: 10
+    tags: [rate-limit, api-calls]
+    enabled: true
+
+  # Operation timeout enforcement (30 seconds)
+  - name: OperationTimeoutLimit
+    rule: |
+      operation.estimated_duration_seconds > 30
+    action: deny
+    message: |
+      Operation would exceed 30-second timeout limit.
+      Estimated: ${operation.estimated_duration_seconds}s
+    tags: [timeout, performance]
+    enabled: true
+
+  # Prevent operations that would exceed budget
+  - name: BudgetExceededPrevention
+    rule: |
+      (organization.monthly_spend + estimated_operation_cost) > 3000
+    action: deny
+    message: |
+      Operation would exceed monthly budget.
+      Current: $${organization.monthly_spend / 100}
+      Operation: $${estimated_operation_cost / 100}
+      Budget: $30.00
+    tags: [cost-control, budget-enforcement]
+    enabled: true
+
+  # Warning when approaching budget (80%)
+  - name: BudgetApproachingWarning
+    rule: |
+      organization.monthly_spend >= 2400
+    action: warn
+    message: |
+      Monthly budget approaching limit.
+      Used: $${organization.monthly_spend / 100} / $30.00 (80%)
+    tags: [cost-control, warning]
+    enabled: true
+
+  # GitHub runner cost warning
+  - name: GitHubRunnerCostWarning
+    rule: |
+      skill_name == "github" AND (estimated_operation_cost > 500)
+    action: warn
+    message: |
+      GitHub runner operation cost is high: $${estimated_operation_cost / 100}
+      Consider using smaller runners or batch operations.
+    tags: [cost-control, github, compute]
+    enabled: true
+
+  # Confluence API cost warning
+  - name: ConfluenceBulkOperationWarning
+    rule: |
+      skill_name == "confluence" AND operation_type == "bulk_update" AND affected_pages > 50
+    action: warn
+    message: |
+      Large Confluence bulk operation detected (${affected_pages} pages).
+      This may increase API costs significantly.
+    tags: [cost-control, confluence, bulk-operations]
+    enabled: true
+
+  # Rate limit burst protection
+  - name: RateLimitBurstProtection
+    rule: |
+      skill.${skill_name}.burst_rate >= 50
+    action: rate_limit
+    message: "Burst rate limit engaged (max 10 requests/second)"
+    rate_limit:
+      requests_per_second: 10
+      burst_size: 5
+    tags: [rate-limit, burst-protection]
+    enabled: true
+
+# Skill-specific limits
+skill_limits:
+  github:
+    monthly_budget_cents: 500  # $5/month for GitHub operations
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    burst_size: 10
+
+  confluence:
+    monthly_budget_cents: 500  # $5/month for Confluence operations
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    burst_size: 10
+
+  jira:
+    monthly_budget_cents: 500  # $5/month for Jira operations
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    burst_size: 10
+
+  green:
+    monthly_budget_cents: 500  # $5/month for CI/CD health checks
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    burst_size: 10
+
+  prcheck:
+    monthly_budget_cents: 500  # $5/month for PR checks
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    burst_size: 10
+
+# Cost estimation for common operations
+operation_costs:
+  github:
+    runner_minute_standard: 10  # 1 cent per minute
+    runner_minute_large: 20     # 2 cents per minute
+    api_call: 0                 # Free tier
+
+  confluence:
+    api_call: 0                 # Free for most operations
+    bulk_update_per_page: 2     # 2 cents per page for bulk ops
+    export_page: 5              # 5 cents per page export
+
+  jira:
+    api_call: 0                 # Free for most operations
+    bulk_operation_per_issue: 1 # 1 cent per issue
+
+  green:
+    scan_per_repo: 5            # 5 cents per repo scan
+    ci_check_per_run: 3         # 3 cents per CI run
+
+  prcheck:
+    scan_per_pr: 3              # 3 cents per PR check
+    lint_per_file: 1            # 1 cent per file scanned
+
+# Variables for policy evaluation
+variables:
+  monthly_budget_cents: 3000
+  warning_threshold_percent: 80
+  api_rate_limit_per_minute: 100
+  operation_timeout_seconds: 30
+
+# Test cases
+test_cases:
+  - name: "Operation under budget - allow"
+    input:
+      skill_name: github
+      estimated_operation_cost: 100
+      organization_monthly_spend: 1000
+      organization_monthly_budget: 3000
+    expected: ALLOW
+
+  - name: "Operation exceeds budget - deny"
+    input:
+      skill_name: github
+      estimated_operation_cost: 2500
+      organization_monthly_spend: 1000
+      organization_monthly_budget: 3000
+    expected: DENY
+
+  - name: "At warning threshold - warn"
+    input:
+      skill_name: github
+      estimated_operation_cost: 100
+      organization_monthly_spend: 2400
+      organization_monthly_budget: 3000
+    expected: WARN
+
+  - name: "Rate limit exceeded - rate limit"
+    input:
+      skill_name: github
+      api_calls_this_minute: 100
+    expected: RATE_LIMIT
+
+  - name: "Timeout exceeded - deny"
+    input:
+      skill_name: github
+      estimated_duration_seconds: 45
+      operation_timeout_seconds: 30
+    expected: DENY
+
+  - name: "Confluence bulk operation - warn"
+    input:
+      skill_name: confluence
+      operation_type: bulk_update
+      affected_pages: 75
+    expected: WARN
+
+  - name: "GitHub expensive runner - warn"
+    input:
+      skill_name: github
+      estimated_operation_cost: 600
+      operation_type: runner
+    expected: WARN

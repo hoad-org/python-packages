@@ -1,0 +1,186 @@
+# TerrorGems Phase 1 Policy
+#
+# Budget: £20-30/month ($25-40 USD)
+# Status: LIVE (launched 2026-04-14)
+#
+# This policy supports Phase 1 gamification features and expanded infrastructure.
+
+name: TerrorgemsPhase1Policy
+version: "1.0.0"
+description: |
+  Terrorgems Phase 1 cost control and compliance policy.
+
+  Budget: £20-30/month (~$25-40 USD)
+  Infrastructure: AWS free tier + scaled services
+  Status: Live (2026-04-14)
+
+  Phase 1 Features:
+  - Gamification enhancements (50 events/day)
+  - Creator MVP (user-generated content)
+  - Web push notifications
+  - Jigsaw campaign expansion
+  - Creator Pro tier foundation
+
+enabled: true
+priority: 100
+
+# Phase 1 constraints
+constraints:
+  # Monthly budget limit (£30 = 3000 pence)
+  - name: MonthlyBudgetLimit
+    rule: |
+      organization.monthly_spend > 3000
+    action: deny
+    message: |
+      Phase 1 monthly budget exceeded.
+      Limit: £30.00
+      Current: £${organization.monthly_spend / 100}
+    tags: [terrorgems, phase1, budget]
+    enabled: true
+
+  # Per-skill limits (£5 per skill)
+  - name: PerSkillLimit
+    rule: |
+      skill.${skill_name}.monthly_spend > 500
+    action: deny
+    message: |
+      ${skill_name} skill limit exceeded (£5.00).
+      Current: £${skill.${skill_name}.monthly_spend / 100}
+    tags: [terrorgems, phase1]
+    enabled: true
+
+  # Warn at 70% budget
+  - name: BudgetWarning
+    rule: |
+      organization.monthly_spend >= 2100
+    action: warn
+    message: |
+      Phase 1 budget approaching (70%).
+      Used: £${organization.monthly_spend / 100} / £30.00
+    tags: [terrorgems, phase1, warning]
+    enabled: true
+
+  # Gamification: 50 events/day
+  - name: GamificationEventLimit
+    rule: |
+      operation_type == "gamification_event" AND events_today >= 50
+    action: rate_limit
+    message: "Phase 1: Daily event limit (50 events/day) reached"
+    rate_limit:
+      requests_per_day: 50
+    tags: [terrorgems, phase1, gamification]
+    enabled: true
+
+  # Creator MVP content upload limit
+  - name: CreatorContentLimit
+    rule: |
+      operation_type == "create_user_content" AND content_uploaded_today >= 100
+    action: rate_limit
+    message: "Creator: Daily content limit (100/day) reached"
+    rate_limit:
+      requests_per_day: 100
+    tags: [terrorgems, phase1, creator]
+    enabled: true
+
+  # Web push notification limits
+  - name: WebPushLimit
+    rule: |
+      operation_type == "send_web_push" AND pushes_today >= 1000
+    action: rate_limit
+    message: "Web push limit (1000/day) reached"
+    rate_limit:
+      requests_per_day: 1000
+    tags: [terrorgems, phase1, push]
+    enabled: true
+
+  # Creator Pro tier cost tracking
+  - name: CreatorProTierTracking
+    rule: |
+      operation_type == "creator_pro_operation"
+    action: audit
+    message: "Creator Pro: ${actor} performed ${action}"
+    audit_level: info
+    tags: [terrorgems, phase1, creator-pro]
+    enabled: true
+
+# Skill-specific Phase 1 limits
+skill_limits:
+  github:
+    monthly_budget_pence: 500
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  jira:
+    monthly_budget_pence: 500
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  confluence:
+    monthly_budget_pence: 500
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  green:
+    monthly_budget_pence: 500
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  prcheck:
+    monthly_budget_pence: 500
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+# Phase 1 specific configuration
+terrorgems_phase1:
+  users_active: 5000
+  gamification_events_per_day_limit: 50
+  creator_content_limit_per_day: 100
+  web_push_limit_per_day: 1000
+  jigsaw_campaign_expanded: true
+  creator_pro_tier_enabled: true
+  launched_date: "2026-04-14"
+  deployed_features:
+    - gamification_enhancements
+    - creator_mvp
+    - web_push_notifications
+    - jigsaw_expansion
+    - creator_pro_foundation
+
+# Test cases for Phase 1
+test_cases:
+  - name: "Phase 1: under budget - allow"
+    input:
+      organization_monthly_spend: 1500
+      budget: 3000
+    expected: ALLOW
+
+  - name: "Phase 1: exceed budget - deny"
+    input:
+      organization_monthly_spend: 3500
+      budget: 3000
+    expected: DENY
+
+  - name: "Phase 1: gamification 50 events - at limit"
+    input:
+      operation_type: gamification_event
+      events_today: 50
+    expected: RATE_LIMIT
+
+  - name: "Phase 1: creator content 100 items - at limit"
+    input:
+      operation_type: create_user_content
+      content_uploaded_today: 100
+    expected: RATE_LIMIT
+
+  - name: "Phase 1: web push 1000 notifications - at limit"
+    input:
+      operation_type: send_web_push
+      pushes_today: 1000
+    expected: RATE_LIMIT
+
+  - name: "Phase 1: creator pro operation - audit"
+    input:
+      operation_type: creator_pro_operation
+      actor: creator@terrorgems.com
+      action: activate_pro_tier
+    expected: AUDIT

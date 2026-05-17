@@ -1,0 +1,437 @@
+# DevArmor Production Environment Policy
+#
+# Strict policy for production deployments.
+# Applied to: production and preproduction environments only
+#
+# Key Controls:
+#   - Strict cost limit enforcement ($30/month)
+#   - Rate limit: 100 API calls/minute per skill
+#   - Operation timeout: 30 seconds max
+#   - All operations require approval
+#   - Slack alerts for all violations
+#   - Complete audit trail
+#   - Incident response automation
+#
+# Usage:
+#   devarmor policy deploy ./production.yaml --environment=production
+#   devarmor policy test production --skill=github --action=delete --environment=production
+
+name: ProductionEnvironmentPolicy
+version: "1.0.0"
+description: |
+  Strict policy enforcement for production environments.
+
+  Key Controls:
+  - Cost limit: $30/month (strictly enforced)
+  - Rate limit: 100 API calls/minute per skill
+  - Operation timeout: 30 seconds
+  - All mutations require approval
+  - Slack alerts for violations
+  - Complete audit trail with encryption
+  - Incident response automation
+  - High-priority incident escalation
+
+  Applied to: production, preproduction environments only
+  Environment filter: production OR preproduction
+
+enabled: true
+priority: 300  # Highest priority
+
+# Production environment constraints
+constraints:
+  # Strict cost enforcement
+  - name: StrictCostEnforcement
+    rule: |
+      environment in ["production", "preproduction"] AND (organization.monthly_spend + estimated_operation_cost) > 3000
+    action: deny
+    message: |
+      PRODUCTION: Operation exceeds strict cost limit.
+      Current: $${organization.monthly_spend / 100}
+      Operation: $${estimated_operation_cost / 100}
+      Limit: $30.00
+      Contact finance for exception.
+    alert_severity: critical
+    tags: [production, cost-control]
+    enabled: true
+
+  # Rate limiting enforcement
+  - name: StrictRateLimitEnforcement
+    rule: |
+      environment in ["production", "preproduction"] AND skill.${skill_name}.api_calls_this_minute >= 100
+    action: rate_limit
+    message: "PRODUCTION: Rate limit reached (100 calls/minute per skill)"
+    rate_limit:
+      requests_per_minute: 100
+      burst_size: 10
+    alert_severity: warning
+    tags: [production, rate-limit]
+    enabled: true
+
+  # Timeout enforcement
+  - name: StrictTimeoutEnforcement
+    rule: |
+      environment in ["production", "preproduction"] AND operation.estimated_duration_seconds > 30
+    action: deny
+    message: |
+      PRODUCTION: Operation timeout limit exceeded (30 seconds).
+      Estimated: ${operation.estimated_duration_seconds}s
+      Timeout: 30s
+    alert_severity: warning
+    tags: [production, timeout]
+    enabled: true
+
+  # Approval requirement for all mutations
+  - name: MutationApprovalRequired
+    rule: |
+      environment in ["production", "preproduction"] AND operation_type in ["create", "update", "delete"] AND mutation_approval_granted == false
+    action: deny
+    message: |
+      PRODUCTION: All mutations require approval.
+      Operation: ${operation_type}
+      Resource: ${target}
+      Requested by: ${actor}
+    alert_severity: critical
+    tags: [production, approval]
+    enabled: true
+
+  # 2-person approval for delete operations
+  - name: DeleteOperationTwoPersonApproval
+    rule: |
+      environment in ["production", "preproduction"] AND operation_type == "delete" AND delete_approvals < 2
+    action: deny
+    message: |
+      PRODUCTION: Delete operations require 2-person approval.
+      Resource: ${target}
+      Current approvals: ${delete_approvals}
+      Required: 2
+    alert_severity: critical
+    tags: [production, delete, approval]
+    enabled: true
+
+  # Require MFA for all credential operations
+  - name: CredentialOperationsMFARequired
+    rule: |
+      environment in ["production", "preproduction"] AND action in ["rotate_credential", "change_password", "update_token"] AND mfa_verified == false
+    action: deny
+    message: |
+      PRODUCTION: Credential operations require MFA verification.
+      Action: ${action}
+      Actor: ${actor}
+    alert_severity: critical
+    tags: [production, credentials, mfa]
+    enabled: true
+
+  # Slack alert on violations
+  - name: SlackAlertOnViolation
+    rule: |
+      environment in ["production", "preproduction"] AND policy_violated == true
+    action: alert
+    alert_channel: "#devarmor-alerts"
+    alert_severity: critical
+    message: |
+      PRODUCTION POLICY VIOLATION
+      Environment: ${environment}
+      Skill: ${skill_name}
+      Action: ${action}
+      Actor: ${actor}
+      Policy: ${violated_policy}
+      Time: ${timestamp}
+      Incident ID: ${incident_id}
+    tags: [production, alerts, incident]
+    enabled: true
+
+  # PagerDuty incident creation for critical violations
+  - name: PagerDutyIncidentOnCritical
+    rule: |
+      environment in ["production", "preproduction"] AND violation_severity == "critical"
+    action: incident
+    incident_severity: critical
+    incident_title: "Production Policy Violation: ${violated_policy}"
+    incident_escalation: "on-call-team"
+    message: |
+      Critical production policy violation detected.
+      Policy: ${violated_policy}
+      Skill: ${skill_name}
+      Actor: ${actor}
+      Resource: ${target}
+    tags: [production, incident-management]
+    enabled: true
+
+  # Slack alert on warnings
+  - name: SlackAlertOnWarning
+    rule: |
+      environment in ["production", "preproduction"] AND policy_warning == true
+    action: alert
+    alert_channel: "#devarmor-warnings"
+    alert_severity: warning
+    message: |
+      PRODUCTION WARNING
+      Environment: ${environment}
+      Skill: ${skill_name}
+      Warning: ${warning_message}
+      Time: ${timestamp}
+    tags: [production, alerts]
+    enabled: true
+
+  # Block operations outside business hours
+  - name: BlockOffHoursOperations
+    rule: |
+      environment in ["production", "preproduction"] AND operation_type == "delete" AND NOT is_business_hours()
+    action: deny
+    message: |
+      PRODUCTION: Delete operations only allowed during business hours.
+      Current time: ${current_time}
+      Business hours: 09:00-17:00 UTC (Mon-Fri)
+      Requested by: ${actor}
+    alert_severity: warning
+    tags: [production, off-hours]
+    enabled: true
+
+  # Require change ticket for production operations
+  - name: ChangeTicketRequired
+    rule: |
+      environment == "production" AND operation_type in ["update", "delete"] AND change_ticket_id == null
+    action: deny
+    message: |
+      PRODUCTION: Change ticket required (SOC2 C2.1).
+      Operation: ${operation_type}
+      Resource: ${target}
+      Create change ticket (Jira): DEVOPS-PROD-CHANGE
+    alert_severity: critical
+    tags: [production, change-management, soc2]
+    enabled: true
+
+  # Enforce read-replica validation
+  - name: ReadReplicaValidation
+    rule: |
+      environment == "production" AND operation_type == "update" AND database_read_replica_validated == false
+    action: deny
+    message: |
+      PRODUCTION: Database read replicas must be validated before updates.
+      Database: ${database_name}
+      Read replicas: ${replica_count}
+    alert_severity: critical
+    tags: [production, database, replication]
+    enabled: true
+
+# Production environment configuration
+environment_config:
+  production:
+    description: "Production environment"
+    cost_limits_enabled: true
+    cost_monthly_limit_cents: 3000
+    approval_gates_enabled: true
+    min_approvals: 1
+    min_approvals_for_delete: 2
+    mfa_required: true
+    notifications_enabled: true
+    notification_channels:
+      - slack: "#devarmor-alerts"
+      - pagerduty: "on-call-team"
+    audit_logging_enabled: true
+    audit_log_encryption: true
+    retention_days: 365
+    external_api_whitelist_strict: true
+    rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    incident_response_enabled: true
+    incident_escalation: "on-call-team"
+
+  preproduction:
+    description: "Pre-production/staging environment"
+    cost_limits_enabled: true
+    cost_monthly_limit_cents: 3000
+    approval_gates_enabled: true
+    min_approvals: 1
+    min_approvals_for_delete: 1
+    mfa_required: false
+    notifications_enabled: true
+    notification_channels:
+      - slack: "#devarmor-preproduction"
+    audit_logging_enabled: true
+    audit_log_encryption: false
+    retention_days: 90
+    external_api_whitelist_strict: true
+    rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    incident_response_enabled: true
+    incident_escalation: "dev-team"
+
+# Skill-specific production limits
+skill_limits:
+  github:
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    cost_monthly_limit_cents: 500
+    approval_required: true
+    external_apis_allowed: false
+    mfa_required: true
+
+  confluence:
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    cost_monthly_limit_cents: 500
+    approval_required: true
+    external_apis_allowed: false
+    mfa_required: true
+
+  jira:
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    cost_monthly_limit_cents: 500
+    approval_required: true
+    external_apis_allowed: false
+    mfa_required: true
+
+  green:
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    cost_monthly_limit_cents: 500
+    approval_required: true
+    external_apis_allowed: false
+    mfa_required: false
+
+  prcheck:
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+    cost_monthly_limit_cents: 500
+    approval_required: true
+    external_apis_allowed: false
+    mfa_required: false
+
+# Production-only external domains
+allowed_external_domains:
+  - "github.com"
+  - "api.github.com"
+  - "jira.atlassian.net"
+  - "confluence.atlassian.net"
+  - "slack.com"
+  - "api.slack.com"
+
+# Production alerts
+alerts:
+  slack_webhook: "${SLACK_WEBHOOK_URL}"
+  pagerduty_integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+  alert_channels:
+    critical:
+      slack: "#devarmor-alerts"
+      pagerduty: "on-call-team"
+      email: "devops@example.com"
+    warning:
+      slack: "#devarmor-warnings"
+    info:
+      slack: "#devarmor-info"
+
+# Approval requirements
+approval_requirements:
+  create_operation:
+    required: true
+    approvers_needed: 1
+    roles: ["devops", "security"]
+    timeout_minutes: 60
+
+  update_operation:
+    required: true
+    approvers_needed: 1
+    roles: ["devops", "security"]
+    timeout_minutes: 60
+
+  delete_operation:
+    required: true
+    approvers_needed: 2
+    roles: ["devops", "security"]
+    timeout_minutes: 120
+
+  credential_change:
+    required: true
+    approvers_needed: 1
+    roles: ["security", "admin"]
+    mfa_required: true
+    timeout_minutes: 30
+
+# Incident response
+incident_response:
+  enabled: true
+  auto_rollback_on_violation: false
+  create_incident_on_critical: true
+  escalation_policy: "on-call-team"
+  max_response_time_minutes: 30
+  require_root_cause_analysis: true
+  notify_leadership: true
+
+# Business hours configuration
+business_hours:
+  enabled: true
+  timezone: "UTC"
+  monday_to_friday: "09:00-17:00"
+  saturday: "off"
+  sunday: "off"
+  holidays: []  # Add holidays as needed
+
+# Test cases
+test_cases:
+  - name: "Production: cost exceeds limit - deny"
+    input:
+      environment: production
+      estimated_operation_cost: 2500
+      organization_monthly_spend: 1000
+      monthly_budget: 3000
+    expected: DENY
+
+  - name: "Production: operation approved - allow"
+    input:
+      environment: production
+      operation_type: update
+      mutation_approval_granted: true
+      approvals: 1
+    expected: ALLOW
+
+  - name: "Production: delete without 2 approvals - deny"
+    input:
+      environment: production
+      operation_type: delete
+      delete_approvals: 1
+    expected: DENY
+
+  - name: "Production: delete with 2 approvals - allow"
+    input:
+      environment: production
+      operation_type: delete
+      delete_approvals: 2
+    expected: ALLOW
+
+  - name: "Production: credential change without MFA - deny"
+    input:
+      environment: production
+      action: rotate_credential
+      mfa_verified: false
+    expected: DENY
+
+  - name: "Production: off-hours delete - deny"
+    input:
+      environment: production
+      operation_type: delete
+      current_hour: 22
+      is_business_hours: false
+    expected: DENY
+
+  - name: "Production: business-hours delete - allow"
+    input:
+      environment: production
+      operation_type: delete
+      current_hour: 14
+      is_business_hours: true
+      delete_approvals: 2
+    expected: ALLOW
+
+  - name: "Production: rate limit exceeded - rate limit"
+    input:
+      environment: production
+      api_calls_this_minute: 150
+    expected: RATE_LIMIT
+
+  - name: "Production: timeout exceeded - deny"
+    input:
+      environment: production
+      estimated_duration_seconds: 45
+    expected: DENY

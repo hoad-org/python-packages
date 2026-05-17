@@ -1,0 +1,311 @@
+# DevArmor Security Policy
+#
+# Enforces comprehensive security controls across all skills.
+# Applied to: all skills
+#
+# Key Controls:
+#   - Block all database delete operations
+#   - Require 2-person approval for bulk updates
+#   - Block credential changes without MFA verification
+#   - Allow read-only operations always
+#   - Block external API calls (configurable)
+#
+# Usage:
+#   devarmor policy deploy ./security.yaml
+#   devarmor policy test security --action=delete_database --environment=production
+
+name: SecurityPolicy
+version: "1.0.0"
+description: |
+  Enterprise security controls enforced across all skills.
+
+  Key Controls:
+  - DELETE operations on production databases are DENIED
+  - Bulk updates require 2-person approval
+  - Credential changes require MFA verification
+  - Read-only operations always allowed
+  - External API calls blocked by default (skill-specific)
+  - All mutations logged with full audit trail
+
+  Applied to: all skills
+
+enabled: true
+priority: 200  # Higher priority than cost control
+
+# Security constraints
+constraints:
+  # Block production database deletes
+  - name: BlockProductionDatabaseDeletes
+    rule: |
+      action == "delete" AND target_type == "database" AND environment == "production"
+    action: deny
+    message: |
+      Production database delete operations are not allowed.
+      Action: ${action}
+      Target: ${target}
+      Environment: ${environment}
+    tags: [security, database, production, delete]
+    enabled: true
+
+  # Block all delete operations without approval
+  - name: BlockDeleteWithoutApproval
+    rule: |
+      action == "delete" AND approval_granted == false
+    action: deny
+    message: |
+      Delete operations require approval.
+      Resource: ${target}
+      Requested by: ${actor}
+    tags: [security, delete, approval]
+    enabled: true
+
+  # Bulk updates require 2-person approval
+  - name: BulkUpdateApprovalGate
+    rule: |
+      operation_type == "bulk_update" AND affected_resources > 10 AND approvals < 2
+    action: deny
+    message: |
+      Bulk operations affecting ${affected_resources} resources require 2-person approval.
+      Current approvals: ${approvals}
+    tags: [security, bulk-update, approval]
+    enabled: true
+
+  # Block credential changes without MFA
+  - name: CredentialChangeRequiresMFA
+    rule: |
+      action in ["rotate_credential", "change_password", "update_token"] AND mfa_verified == false
+    action: deny
+    message: |
+      Credential changes require MFA verification.
+      Action: ${action}
+      Actor: ${actor}
+      MFA Status: ${mfa_verified}
+    tags: [security, credentials, mfa]
+    enabled: true
+
+  # Block external API calls by default
+  - name: BlockExternalAPICallsByDefault
+    rule: |
+      is_external_api_call == true AND allowed_external_domains not contains target_domain
+    action: deny
+    message: |
+      External API calls are not allowed to: ${target_domain}
+      Contact security team to whitelist this domain.
+    tags: [security, external-api, network]
+    enabled: true
+
+  # Allow all read-only operations
+  - name: AllowReadOnlyOperations
+    rule: |
+      operation_is_readonly == true
+    action: allow
+    message: "Read-only operation allowed"
+    tags: [security, readonly]
+    enabled: true
+
+  # Block privilege escalation attempts
+  - name: BlockPrivilegeEscalation
+    rule: |
+      action == "assume_role" AND requested_role_level > actor_role_level
+    action: deny
+    message: |
+      Privilege escalation not allowed.
+      Current role: ${actor_role_level}
+      Requested role: ${requested_role_level}
+      Actor: ${actor}
+    tags: [security, privilege-escalation]
+    enabled: true
+
+  # Block concurrent sessions from different IPs
+  - name: BlockConcurrentSessionsFromDifferentIPs
+    rule: |
+      actor_concurrent_sessions > 1 AND actor_ip_addresses distinct > 1 AND ip_validation_required == true
+    action: deny
+    message: |
+      Concurrent sessions from different IPs detected.
+      Sessions: ${actor_concurrent_sessions}
+      IPs: ${actor_ip_addresses distinct}
+      Contact security team if this is expected.
+    tags: [security, session, anomaly]
+    enabled: true
+
+  # Block access to sensitive resources without MFA
+  - name: SensitiveResourceAccessRequiresMFA
+    rule: |
+      target_sensitivity == "high" AND mfa_verified == false
+    action: deny
+    message: |
+      Access to sensitive resources requires MFA verification.
+      Resource: ${target}
+      Sensitivity Level: ${target_sensitivity}
+    tags: [security, sensitive-resources, mfa]
+    enabled: true
+
+  # Enforce rate limiting on failed auth attempts
+  - name: RateLimitFailedAuthAttempts
+    rule: |
+      failed_auth_attempts >= 3
+    action: rate_limit
+    message: "Too many failed authentication attempts. Please try again later."
+    rate_limit:
+      requests_per_minute: 1
+      lockout_duration_minutes: 15
+    tags: [security, authentication, rate-limit]
+    enabled: true
+
+  # Block operations from untrusted networks
+  - name: BlockUntrustedNetworkAccess
+    rule: |
+      network_trust_level == "untrusted" AND operation_requires_trust == true
+    action: deny
+    message: |
+      Operation not allowed from untrusted network: ${source_ip}
+      Please connect from a trusted network or use VPN.
+    tags: [security, network, access-control]
+    enabled: true
+
+  # Audit all credential access
+  - name: AuditCredentialAccess
+    rule: |
+      action in ["read_credential", "use_credential"]
+    action: audit
+    message: "Credential access: ${actor} accessed ${target}"
+    audit_level: critical
+    tags: [security, credentials, audit]
+    enabled: true
+
+  # Enforce encryption for data in transit
+  - name: EnforceEncryptionInTransit
+    rule: |
+      data_classification == "sensitive" AND transport_encrypted == false
+    action: deny
+    message: |
+      Sensitive data must be encrypted in transit (TLS).
+      Resource: ${target}
+      Current encryption: ${transport_encrypted}
+    tags: [security, encryption, network]
+    enabled: true
+
+# Forbidden patterns (regex)
+forbidden_patterns:
+  - "DROP TABLE"
+  - "DELETE FROM.*WHERE"
+  - "TRUNCATE"
+  - "rm -rf"
+  - "sudo.*rm"
+
+# Allowed external domains (for API calls)
+allowed_external_domains:
+  - "github.com"
+  - "api.github.com"
+  - "jira.atlassian.net"
+  - "confluence.atlassian.net"
+  - "slack.com"
+  - "api.slack.com"
+
+# MFA requirement rules
+mfa_required_for:
+  - credential_rotation
+  - password_change
+  - api_token_generation
+  - privilege_escalation
+  - sensitive_resource_access
+  - bulk_operations
+
+# Approval requirements
+approval_requirements:
+  delete_operation:
+    required: true
+    approvers_needed: 1
+    roles: ["admin", "security"]
+    notification: true
+
+  bulk_update_over_10:
+    required: true
+    approvers_needed: 2
+    roles: ["admin", "security", "product"]
+    notification: true
+
+  credential_change:
+    required: true
+    approvers_needed: 1
+    roles: ["security"]
+    notification: true
+
+  privilege_escalation:
+    required: true
+    approvers_needed: 2
+    roles: ["security", "compliance"]
+    notification: true
+
+# Risk assessment rules
+risk_scores:
+  database_delete: 100  # Critical
+  bulk_delete: 90       # Critical
+  credential_change: 75 # High
+  privilege_escalation: 85  # Critical
+  external_api_call: 50 # Medium
+  unencrypted_data_transfer: 80  # High
+
+# Test cases
+test_cases:
+  - name: "Production database delete - deny"
+    input:
+      action: delete
+      target_type: database
+      environment: production
+      approval_granted: false
+    expected: DENY
+
+  - name: "Read-only operation - allow"
+    input:
+      operation_is_readonly: true
+      actor_role_level: 1
+    expected: ALLOW
+
+  - name: "Credential change without MFA - deny"
+    input:
+      action: rotate_credential
+      mfa_verified: false
+      actor: alice@example.com
+    expected: DENY
+
+  - name: "Bulk update with approval - allow"
+    input:
+      operation_type: bulk_update
+      affected_resources: 50
+      approvals: 2
+    expected: ALLOW
+
+  - name: "Bulk update without approval - deny"
+    input:
+      operation_type: bulk_update
+      affected_resources: 50
+      approvals: 0
+    expected: DENY
+
+  - name: "External API to untrusted domain - deny"
+    input:
+      is_external_api_call: true
+      target_domain: untrusted.com
+      allowed_external_domains: ["github.com", "slack.com"]
+    expected: DENY
+
+  - name: "External API to allowed domain - allow"
+    input:
+      is_external_api_call: true
+      target_domain: github.com
+      allowed_external_domains: ["github.com", "slack.com"]
+    expected: ALLOW
+
+  - name: "Privilege escalation attempt - deny"
+    input:
+      action: assume_role
+      actor_role_level: 1
+      requested_role_level: 3
+    expected: DENY
+
+  - name: "Failed auth attempts - rate limit"
+    input:
+      failed_auth_attempts: 5
+    expected: RATE_LIMIT

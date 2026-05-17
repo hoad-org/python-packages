@@ -1,0 +1,268 @@
+# Enterprise SOC2 Compliance Policy
+#
+# Enforces SOC2 Type II controls across enterprise deployments.
+# Aligns with AICPA Trust Services Criteria (CC, C, A, L)
+#
+# This policy is for enterprise customers requiring SOC2 attestation.
+
+name: EnterpriseSoc2Policy
+version: "1.0.0"
+description: |
+  SOC2 Type II compliance policy for enterprise deployments.
+
+  Trust Services Criteria Covered:
+  - CC: Common Criteria (security & availability)
+  - C: Confidentiality
+  - A: Availability
+  - L: Logical & operational availability
+
+  Key Controls:
+  - Change management (CC6.1, CC6.2)
+  - Access control review (CC7.2)
+  - Incident response (A1.2)
+  - Logical access (C1.1, C1.2)
+  - Audit trail (L1.1)
+
+enabled: true
+priority: 250
+
+# SOC2 Change Management Controls
+constraints:
+  # CC6.1: Changes are monitored and enforced
+  - name: ChangeManagementCC61
+    rule: |
+      target_environment == "production" AND change_monitored == false
+    action: deny
+    message: |
+      SOC2 CC6.1: Production changes must be monitored.
+      Change: ${operation_type}
+      Resource: ${target}
+    tags: [soc2, cc6.1, change-management]
+    enabled: true
+
+  # CC6.2: Change authorization required
+  - name: ChangeAuthorizationCC62
+    rule: |
+      target_environment == "production" AND operation_type != "read" AND change_authorized == false
+    action: deny
+    message: |
+      SOC2 CC6.2: Production changes require authorization.
+      Change: ${operation_type}
+      Authorization: ${change_authorized}
+    tags: [soc2, cc6.2, authorization]
+    enabled: true
+
+  # CC7.2: Access review required every 6 months
+  - name: AccessReviewCC72
+    rule: |
+      last_access_review_days > 180
+    action: warn
+    message: |
+      SOC2 CC7.2: Access review overdue (> 180 days).
+      Last review: ${last_access_review_days} days ago
+      Next review due: ${next_review_date}
+    tags: [soc2, cc7.2, access-review]
+    enabled: true
+
+  # C1.1: Logical access control
+  - name: LogicalAccessControlC11
+    rule: |
+      resource_classification in ["confidential", "restricted"] AND access_authenticated == false
+    action: deny
+    message: |
+      SOC2 C1.1: Access to confidential resources requires authentication.
+      Resource: ${target}
+      Classification: ${resource_classification}
+    tags: [soc2, c1.1, access-control]
+    enabled: true
+
+  # C1.2: User identity verification
+  - name: UserIdentityVerificationC12
+    rule: |
+      resource_classification == "restricted" AND identity_verified == false
+    action: deny
+    message: |
+      SOC2 C1.2: Access to restricted resources requires verified identity.
+      Resource: ${target}
+      User: ${actor}
+    tags: [soc2, c1.2, identity]
+    enabled: true
+
+  # A1.2: Incident response procedures
+  - name: IncidentResponseA12
+    rule: |
+      incident_severity == "critical" AND incident_reported == false
+    action: incident
+    message: |
+      SOC2 A1.2: Critical incident must be reported.
+      Incident: ${incident_description}
+      Severity: critical
+    tags: [soc2, a1.2, incident-response]
+    enabled: true
+
+  # L1.1: Audit trail for all transactions
+  - name: AuditTrailL11
+    rule: |
+      operation_type in ["create", "update", "delete"] AND audit_logged == false
+    action: deny
+    message: |
+      SOC2 L1.1: All mutations must be logged.
+      Operation: ${operation_type}
+      Resource: ${target}
+    tags: [soc2, l1.1, audit]
+    enabled: true
+
+  # L1.2: Audit log protection (immutability)
+  - name: AuditLogProtectionL12
+    rule: |
+      audit_log_modified == true OR audit_log_deleted == true
+    action: deny
+    message: |
+      SOC2 L1.2: Audit logs cannot be modified.
+      Log entry: ${log_entry_id}
+      Action attempted: ${attempted_action}
+    tags: [soc2, l1.2, immutability]
+    enabled: true
+
+  # Encryption for confidential data
+  - name: EncryptionForConfidentialData
+    rule: |
+      resource_classification == "confidential" AND encrypted_at_rest == false
+    action: deny
+    message: |
+      SOC2: Confidential data must be encrypted at rest.
+      Resource: ${target}
+      Encryption: ${encrypted_at_rest}
+    tags: [soc2, encryption]
+    enabled: true
+
+  # TLS for data in transit
+  - name: TLSForDataInTransit
+    rule: |
+      resource_classification in ["confidential", "restricted"] AND tls_enabled == false
+    action: deny
+    message: |
+      SOC2: Confidential data must use TLS in transit.
+      Connection: ${connection_target}
+      TLS: ${tls_enabled}
+    tags: [soc2, encryption, tls]
+    enabled: true
+
+# SOC2 Criteria definitions
+soc2_criteria:
+  CC:
+    description: "Common Criteria - Security & Availability"
+    controls:
+      - "CC1: Business objectives"
+      - "CC6: Logical access controls"
+      - "CC7: System monitoring"
+
+  C:
+    description: "Confidentiality"
+    controls:
+      - "C1: Access control"
+      - "C2: Confidentiality agreements"
+
+  A:
+    description: "Availability"
+    controls:
+      - "A1: Incident response"
+      - "A2: System availability"
+
+  L:
+    description: "Logical and Operational Availability"
+    controls:
+      - "L1: Audit trail"
+      - "L2: Retention policies"
+
+# SOC2 requirement mappings
+soc2_requirements:
+  change_management:
+    criteria: ["CC6.1", "CC6.2"]
+    requirement: "All production changes must be authorized and monitored"
+    verification: "change_authorized == true AND change_monitored == true"
+
+  access_control:
+    criteria: ["CC7.2", "C1.1"]
+    requirement: "Access control review every 180 days"
+    verification: "last_access_review_days <= 180"
+
+  incident_response:
+    criteria: ["A1.2"]
+    requirement: "Critical incidents must be reported and tracked"
+    verification: "incident_reported == true"
+
+  audit_trail:
+    criteria: ["L1.1", "L1.2"]
+    requirement: "Complete immutable audit trail for all mutations"
+    verification: "audit_logged == true AND audit_log_modified == false"
+
+  encryption:
+    criteria: ["C1.1", "C1.2"]
+    requirement: "Confidential data encrypted at rest and in transit"
+    verification: "encrypted_at_rest == true AND tls_enabled == true"
+
+# Audit configuration
+audit:
+  enabled: true
+  log_all_mutations: true
+  log_access_to_confidential: true
+  retention_days: 365  # 1 year minimum
+  encryption_enabled: true
+  immutable: true
+  backup_enabled: true
+  backup_frequency: "daily"
+
+# Access review schedule
+access_review:
+  enabled: true
+  frequency_days: 180
+  required_approvers: 2
+  required_roles: ["security", "compliance"]
+  coverage: "100%"
+
+# Test cases
+test_cases:
+  - name: "SOC2 CC6.2: Production change without authorization - deny"
+    input:
+      target_environment: production
+      operation_type: update
+      change_authorized: false
+    expected: DENY
+
+  - name: "SOC2 C1.1: Confidential resource access without auth - deny"
+    input:
+      resource_classification: confidential
+      access_authenticated: false
+    expected: DENY
+
+  - name: "SOC2 L1.1: Mutation without logging - deny"
+    input:
+      operation_type: delete
+      audit_logged: false
+    expected: DENY
+
+  - name: "SOC2 L1.2: Audit log modification - deny"
+    input:
+      audit_log_modified: true
+      log_entry_id: audit-001
+    expected: DENY
+
+  - name: "SOC2: Confidential data without encryption - deny"
+    input:
+      resource_classification: confidential
+      encrypted_at_rest: false
+    expected: DENY
+
+  - name: "SOC2: Access review overdue - warn"
+    input:
+      last_access_review_days: 200
+    expected: WARN
+
+  - name: "SOC2 CC6.1: Production change monitored - allow"
+    input:
+      target_environment: production
+      change_monitored: true
+      change_authorized: true
+      operation_type: update
+    expected: ALLOW

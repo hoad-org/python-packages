@@ -1,0 +1,177 @@
+# TerrorGems Phase 0 Policy
+#
+# Budget: £3-6/month (300-600 pence / $4-8 USD)
+# Status: LIVE (launched 2026-04-13)
+#
+# This policy enforces strict cost controls for the Terrorgem MVP phase.
+# Phase 0 focuses on core game mechanics with minimal infrastructure costs.
+
+name: TerrorgemsPhase0Policy
+version: "1.0.0"
+description: |
+  Terrorgems Phase 0 cost control and compliance policy.
+
+  Budget: £3-6/month (~$4-8 USD)
+  Infrastructure: AWS free tier + low-cost services
+  Skills deployed: github, jira, confluence, green, prcheck
+  Status: Live (2026-04-13)
+
+  Phase 0 Scope:
+  - Core game mechanics (scare, survive, escape)
+  - User authentication
+  - Basic leaderboard
+  - Gamification events (20 events/day)
+  - Jigsaw campaign mechanics
+  - Retention emails
+
+enabled: true
+priority: 100
+
+# Phase 0 specific constraints
+constraints:
+  # Monthly budget limit (£6 = 600 pence)
+  - name: MonthlyBudgetLimit
+    rule: |
+      organization.monthly_spend > 600
+    action: deny
+    message: |
+      Phase 0 monthly budget exceeded.
+      Limit: £6.00
+      Current: £${organization.monthly_spend / 100}
+    tags: [terrorgems, phase0, budget]
+    enabled: true
+
+  # Per-skill limits (£1 per skill)
+  - name: PerSkillLimit
+    rule: |
+      skill.${skill_name}.monthly_spend > 100
+    action: deny
+    message: |
+      ${skill_name} skill monthly limit exceeded.
+      Limit: £1.00
+      Current: £${skill.${skill_name}.monthly_spend / 100}
+    tags: [terrorgems, phase0, per-skill]
+    enabled: true
+
+  # Warn at 70% of budget (not 80%)
+  - name: BudgetWarning
+    rule: |
+      organization.monthly_spend >= 420
+    action: warn
+    message: |
+      Phase 0 budget approaching limit (70%).
+      Used: £${organization.monthly_spend / 100} / £6.00
+    tags: [terrorgems, phase0, warning]
+    enabled: true
+
+  # Rate limit gamification events
+  - name: GamificationEventRateLimit
+    rule: |
+      operation_type == "gamification_event" AND events_today >= 20
+    action: rate_limit
+    message: "Phase 0: Daily event limit (20 events/day) reached"
+    rate_limit:
+      requests_per_day: 20
+    tags: [terrorgems, phase0, gamification]
+    enabled: true
+
+  # Jigsaw campaign tracking
+  - name: JigsawCampaignTracking
+    rule: |
+      operation_type in ["jigsaw_hint", "jigsaw_clue_unlock"]
+    action: audit
+    message: "Jigsaw campaign: ${actor} accessed ${target}"
+    audit_level: info
+    tags: [terrorgems, phase0, jigsaw]
+    enabled: true
+
+  # Retention email limits
+  - name: RetentionEmailLimit
+    rule: |
+      operation_type == "send_retention_email" AND emails_today >= 50
+    action: rate_limit
+    message: "Retention email limit (50/day) reached"
+    rate_limit:
+      requests_per_day: 50
+    tags: [terrorgems, phase0, retention]
+    enabled: true
+
+# Skill-specific Phase 0 limits
+skill_limits:
+  github:
+    monthly_budget_pence: 100
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  jira:
+    monthly_budget_pence: 100
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  confluence:
+    monthly_budget_pence: 100
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  green:
+    monthly_budget_pence: 100
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+  prcheck:
+    monthly_budget_pence: 100
+    api_rate_limit_per_minute: 100
+    operation_timeout_seconds: 30
+
+# Phase 0 specific configuration
+terrorgems_phase0:
+  game_mechanics:
+    - scare
+    - survive
+    - escape
+  users_beta: 500
+  gamification_events_per_day_limit: 20
+  jigsaw_campaign_enabled: true
+  retention_emails_per_day_limit: 50
+  launched_date: "2026-04-13"
+
+# Test cases for Phase 0
+test_cases:
+  - name: "Phase 0: under budget - allow"
+    input:
+      organization_monthly_spend: 300
+      budget: 600
+    expected: ALLOW
+
+  - name: "Phase 0: at 70% warning threshold - warn"
+    input:
+      organization_monthly_spend: 420
+      budget: 600
+    expected: WARN
+
+  - name: "Phase 0: exceed budget - deny"
+    input:
+      organization_monthly_spend: 650
+      budget: 600
+    expected: DENY
+
+  - name: "Phase 0: gamification event under limit - allow"
+    input:
+      operation_type: gamification_event
+      events_today: 15
+      event_limit: 20
+    expected: ALLOW
+
+  - name: "Phase 0: gamification event over limit - rate limit"
+    input:
+      operation_type: gamification_event
+      events_today: 20
+      event_limit: 20
+    expected: RATE_LIMIT
+
+  - name: "Phase 0: retention email - audit"
+    input:
+      operation_type: send_retention_email
+      actor: system
+      target: user@example.com
+    expected: AUDIT

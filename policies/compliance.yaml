@@ -1,0 +1,406 @@
+# DevArmor Compliance Policy
+#
+# Enforces comprehensive audit logging and compliance controls.
+# Applied to: all skills
+#
+# Key Controls:
+#   - Complete audit trail for all mutations
+#   - 90-day minimum retention for audit logs
+#   - Delete operations require 2-person approval
+#   - Org-level isolation enforcement
+#   - SOC2, GDPR, and HIPAA alignment
+#
+# Usage:
+#   devarmor policy deploy ./compliance.yaml
+#   devarmor policy test compliance --action=delete --resource=user_data
+
+name: CompliancePolicy
+version: "1.0.0"
+description: |
+  Enterprise compliance controls for audit, retention, and org isolation.
+
+  Key Controls:
+  - Complete audit trail for all mutations (C)RUD operations
+  - 90-day minimum log retention (configurable)
+  - 2-person approval required for delete operations
+  - Org-level isolation enforced
+  - SOC2, GDPR, HIPAA alignment
+  - Data classification tracking
+  - Retention period enforcement by sensitivity
+
+  Applied to: all skills
+
+enabled: true
+priority: 250  # Highest priority
+
+# Compliance constraints
+constraints:
+  # Enforce audit logging for all mutations
+  - name: AuditLoggingRequired
+    rule: |
+      operation_type in ["create", "update", "delete"] AND audit_logged == false
+    action: deny
+    message: |
+      Audit logging required for all mutations.
+      Operation: ${operation_type}
+      Resource: ${target}
+      Timestamp: ${timestamp}
+    tags: [compliance, audit, mutation]
+    enabled: true
+
+  # Delete operations require approval
+  - name: DeleteOperationApprovalRequired
+    rule: |
+      operation_type == "delete" AND delete_approval_granted == false
+    action: deny
+    message: |
+      Delete operations require approval.
+      Resource: ${target}
+      Data Classification: ${data_classification}
+      Requested by: ${actor}
+    tags: [compliance, delete, approval]
+    enabled: true
+
+  # Enforce minimum retention period
+  - name: MinimumRetentionEnforcement
+    rule: |
+      data_classification == "sensitive" AND retention_days < 90
+    action: deny
+    message: |
+      Minimum 90-day retention required for sensitive data.
+      Resource: ${target}
+      Requested retention: ${retention_days} days
+      Minimum required: 90 days
+    tags: [compliance, retention, data-protection]
+    enabled: true
+
+  # Enforce org-level isolation
+  - name: OrgLevelIsolationEnforcement
+    rule: |
+      resource_org_id != actor_org_id AND cross_org_access_allowed == false
+    action: deny
+    message: |
+      Cross-organization access not allowed.
+      Resource org: ${resource_org_id}
+      Actor org: ${actor_org_id}
+      Contact compliance team for cross-org access.
+    tags: [compliance, isolation, multi-tenancy]
+    enabled: true
+
+  # Enforce data classification on all resources
+  - name: DataClassificationRequired
+    rule: |
+      data_classification == null OR data_classification == ""
+    action: deny
+    message: |
+      All resources must be classified (public, internal, sensitive, restricted).
+      Resource: ${target}
+    tags: [compliance, data-classification]
+    enabled: true
+
+  # GDPR: Enforce right to deletion
+  - name: GDPRRightToDeletion
+    rule: |
+      operation_type == "delete" AND data_classification in ["personal", "sensitive"] AND deletion_reason == null
+    action: deny
+    message: |
+      Deletion reason required for personal/sensitive data (GDPR Article 17).
+      Resource: ${target}
+      Data Classification: ${data_classification}
+    tags: [compliance, gdpr, deletion, personal-data]
+    enabled: true
+
+  # GDPR: Enforce data retention limits
+  - name: GDPRRetentionLimit
+    rule: |
+      data_classification == "personal" AND retention_days > 365
+    action: warn
+    message: |
+      Personal data retention exceeds 1 year (GDPR alignment).
+      Resource: ${target}
+      Retention: ${retention_days} days (limit: 365)
+      Justification: ${retention_justification}
+    tags: [compliance, gdpr, retention]
+    enabled: true
+
+  # HIPAA: Enforce encryption for healthcare data
+  - name: HIPAAEncryptionRequired
+    rule: |
+      data_classification == "hipaa" AND encrypted == false
+    action: deny
+    message: |
+      HIPAA data must be encrypted at rest and in transit.
+      Resource: ${target}
+      Current encryption status: ${encrypted}
+    tags: [compliance, hipaa, encryption]
+    enabled: true
+
+  # HIPAA: Enforce access logging
+  - name: HIPAAAccessLogging
+    rule: |
+      data_classification == "hipaa" AND access_logged == false
+    action: deny
+    message: |
+      All access to HIPAA data must be logged.
+      Resource: ${target}
+      Access logging status: ${access_logged}
+    tags: [compliance, hipaa, audit]
+    enabled: true
+
+  # SOC2: Enforce change management
+  - name: SOC2ChangeManagement
+    rule: |
+      target_environment == "production" AND change_approved == false
+    action: deny
+    message: |
+      Production changes require approval (SOC2 C2.1).
+      Change: ${operation_type} on ${target}
+      Environment: ${target_environment}
+    tags: [compliance, soc2, change-management]
+    enabled: true
+
+  # SOC2: Enforce access control review
+  - name: SOC2AccessReview
+    rule: |
+      last_access_review_days > 180
+    action: warn
+    message: |
+      Access control review overdue (SOC2 C3).
+      Last review: ${last_access_review_days} days ago
+      Due: 180 days
+    tags: [compliance, soc2, access-review]
+    enabled: true
+
+  # Enforce immutable audit logs
+  - name: ImmutableAuditLogs
+    rule: |
+      audit_log_modified == true OR audit_log_deleted == true
+    action: deny
+    message: |
+      Audit logs cannot be modified or deleted.
+      Log entry: ${log_entry_id}
+      Attempted action: ${attempted_action}
+    tags: [compliance, audit, immutability]
+    enabled: true
+
+  # Enforce audit log integrity verification
+  - name: AuditLogIntegrityVerification
+    rule: |
+      audit_log_integrity_verified == false
+    action: deny
+    message: |
+      All audit logs must be integrity verified.
+      Log entry: ${log_entry_id}
+    tags: [compliance, audit, integrity]
+    enabled: true
+
+  # Data residency compliance
+  - name: DataResidencyCompliance
+    rule: |
+      data_residency_requirement != null AND data_storage_region != data_residency_requirement
+    action: deny
+    message: |
+      Data residency requirement not met.
+      Resource: ${target}
+      Required region: ${data_residency_requirement}
+      Actual region: ${data_storage_region}
+    tags: [compliance, data-residency, localization]
+    enabled: true
+
+  # Enforce compliance metadata
+  - name: ComplianceMetadataRequired
+    rule: |
+      compliance_frameworks != null AND compliance_metadata_complete == false
+    action: deny
+    message: |
+      Complete compliance metadata required.
+      Resource: ${target}
+      Required frameworks: ${compliance_frameworks}
+      Missing: ${missing_metadata}
+    tags: [compliance, metadata]
+    enabled: true
+
+# Audit logging configuration
+audit_logging:
+  enabled: true
+  log_all_operations: true
+  include_request_body: true
+  include_response_summary: true
+  redact_sensitive_data: true
+  sensitive_data_patterns:
+    - "password"
+    - "token"
+    - "api_key"
+    - "secret"
+    - "credential"
+    - "ssn"
+    - "credit_card"
+    - "pii"
+
+# Retention policies
+retention_policies:
+  public:
+    minimum_days: 30
+    maximum_days: 365
+    archive_after_days: 90
+    description: "Public data with minimal retention requirements"
+
+  internal:
+    minimum_days: 90
+    maximum_days: 730
+    archive_after_days: 180
+    description: "Internal business data"
+
+  sensitive:
+    minimum_days: 90
+    maximum_days: 1095
+    archive_after_days: 365
+    description: "Sensitive business or customer data"
+
+  personal:
+    minimum_days: 30
+    maximum_days: 365
+    archive_after_days: 180
+    description: "Personal data (GDPR compliance)"
+
+  hipaa:
+    minimum_days: 180
+    maximum_days: 2555
+    archive_after_days: 365
+    description: "Healthcare data (HIPAA compliance, ~7 years)"
+
+  restricted:
+    minimum_days: 365
+    maximum_days: 2555
+    archive_after_days: 730
+    description: "Restricted/confidential data"
+
+# Data classification levels
+data_classifications:
+  public:
+    level: 1
+    encryption_required: false
+    retention_days: 90
+    examples: ["public documentation", "marketing materials"]
+
+  internal:
+    level: 2
+    encryption_required: true
+    retention_days: 365
+    examples: ["internal process docs", "architectural docs"]
+
+  sensitive:
+    level: 3
+    encryption_required: true
+    retention_days: 1095
+    examples: ["customer data", "financial records", "technical specs"]
+
+  personal:
+    level: 4
+    encryption_required: true
+    retention_days: 365
+    examples: ["user names", "email addresses", "contact info"]
+
+  hipaa:
+    level: 5
+    encryption_required: true
+    retention_days: 2555
+    examples: ["medical records", "health information"]
+
+  restricted:
+    level: 5
+    encryption_required: true
+    retention_days: 2555
+    examples: ["trade secrets", "API keys", "passwords"]
+
+# Compliance frameworks
+compliance_frameworks:
+  - name: "SOC2 Type II"
+    controls:
+      - "Change Management (C2.1)"
+      - "Access Control Review (C3)"
+      - "Audit Logging (L1)"
+      - "Incident Response (IR)"
+
+  - name: "GDPR"
+    controls:
+      - "Right to Access (Article 15)"
+      - "Right to Deletion (Article 17)"
+      - "Data Portability (Article 20)"
+      - "Retention Limits"
+
+  - name: "HIPAA"
+    controls:
+      - "Encryption (164.312)"
+      - "Access Logging (164.312)"
+      - "Audit Controls (164.312)"
+
+  - name: "PCI-DSS"
+    controls:
+      - "Encryption (3.2.1)"
+      - "Access Control (7.1)"
+      - "Audit Logging (10)"
+
+# Test cases
+test_cases:
+  - name: "Mutation without audit logging - deny"
+    input:
+      operation_type: update
+      audit_logged: false
+      target: customer_database
+    expected: DENY
+
+  - name: "Delete with approval - allow"
+    input:
+      operation_type: delete
+      delete_approval_granted: true
+      data_classification: sensitive
+      actor: alice@example.com
+    expected: ALLOW
+
+  - name: "Delete without approval - deny"
+    input:
+      operation_type: delete
+      delete_approval_granted: false
+      target: user_data
+    expected: DENY
+
+  - name: "Sensitive data retention < 90 days - deny"
+    input:
+      data_classification: sensitive
+      retention_days: 30
+    expected: DENY
+
+  - name: "Cross-org access denied - deny"
+    input:
+      resource_org_id: "org-123"
+      actor_org_id: "org-456"
+      cross_org_access_allowed: false
+    expected: DENY
+
+  - name: "GDPR right to deletion - allow"
+    input:
+      operation_type: delete
+      data_classification: personal
+      deletion_reason: "User requested GDPR Article 17"
+      actor: compliance@example.com
+    expected: ALLOW
+
+  - name: "HIPAA data without encryption - deny"
+    input:
+      data_classification: hipaa
+      encrypted: false
+    expected: DENY
+
+  - name: "SOC2 production change - deny"
+    input:
+      target_environment: production
+      change_approved: false
+      operation_type: update
+    expected: DENY
+
+  - name: "Immutable audit log modification - deny"
+    input:
+      audit_log_modified: true
+      log_entry_id: audit-12345
+    expected: DENY
