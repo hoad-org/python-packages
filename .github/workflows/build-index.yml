@@ -25,15 +25,15 @@ jobs:
           import os
           import re
           from pathlib import Path
-          from datetime import datetime
+          from datetime import datetime, timezone
 
           packages_dir = Path('packages')
           packages_data = []
 
           # Scan packages directory
           if packages_dir.exists():
-              for package_dir in packages_dir.iterdir():
-                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+              for package_dir in sorted(packages_dir.iterdir()):
+                  if not package_dir.is_dir() or package_dir.name in ['__pycache__', '.gitkeep']:
                       continue
 
                   metadata_file = package_dir / 'metadata.json'
@@ -57,7 +57,7 @@ This page is automatically updated when new packages are published.
 
 **Version:** {pkg.get('version', 'unknown')}
 **Repository:** {pkg.get('repository', 'N/A')}
-**Python:** {pkg.get('python_requires', '>=3.12')}
+**Python:** {pkg.get('python_requires', '>=3.9')}
 
 ### Install
 
@@ -65,13 +65,16 @@ This page is automatically updated when new packages are published.
 pip install --index-url https://hoad-org.github.io/python-packages {pkg['name']}
 \`\`\`
 
+**Description:** {pkg.get('description', 'No description available')}
+
 Published: {pkg.get('published_at', 'unknown')}
 
 ---
 
 '''
 
-          packages_md += f"*This page is maintained automatically. Last updated: {datetime.utcnow().isoformat()}Z*"
+          now_utc = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+          packages_md += f"*This page is maintained automatically. Last updated: {now_utc}*"
 
           Path('docs').mkdir(exist_ok=True)
           Path('docs/packages.md').write_text(packages_md)

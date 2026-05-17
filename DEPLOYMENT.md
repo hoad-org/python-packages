@@ -48,19 +48,35 @@ This repository uses GitHub Pages to serve packages as a PEP 503-compliant index
 ```
 python-packages/
 ├── packages/
+│   ├── devarmor-core/
+│   │   ├── src/devarmor/
+│   │   ├── tests/
+│   │   ├── docs/
+│   │   ├── examples/
+│   │   ├── devarmor_core-0.1.0-py3-none-any.whl
+│   │   ├── devarmor_core-0.1.0.tar.gz
+│   │   ├── metadata.json
+│   │   ├── pyproject.toml
+│   │   └── Makefile
 │   ├── claude-github-skill/
 │   │   ├── claude_github_skill-1.0.0-py3-none-any.whl
 │   │   ├── claude_github_skill-1.0.0.tar.gz
 │   │   └── metadata.json
 │   └── [other packages]
 ├── simple/
+│   ├── devarmor-core/
+│   │   └── index.html (PEP 503)
 │   ├── claude-github-skill/
 │   │   └── index.html (PEP 503)
 │   └── [other packages]
+├── bin/
+│   └── devarmor (CLI installer/updater)
 ├── docs/
 │   ├── index.md
 │   └── packages.md (auto-generated)
 ├── index.html (root index)
+├── Makefile (aggregate targets for all packages)
+├── pyproject.toml
 └── .nojekyll (tells GitHub Pages not to use Jekyll)
 ```
 
@@ -83,6 +99,10 @@ Each package includes `metadata.json`:
 ### From Custom Index
 
 ```bash
+# Install DevArmor Core
+pip install --index-url https://hoad-org.github.io/python-packages devarmor-core
+
+# Or other packages
 pip install --index-url https://hoad-org.github.io/python-packages claude-github-skill
 ```
 
@@ -90,7 +110,7 @@ pip install --index-url https://hoad-org.github.io/python-packages claude-github
 
 ```
 -i https://hoad-org.github.io/python-packages
-claude-github-skill>=1.0.0
+devarmor-core>=0.1.0
 ```
 
 ### With pip.conf
@@ -98,6 +118,22 @@ claude-github-skill>=1.0.0
 ```ini
 [global]
 index-url = https://hoad-org.github.io/python-packages
+```
+
+### Using DevArmor CLI Installer
+
+```bash
+# Download and run installer
+curl -fsSL https://raw.githubusercontent.com/rhyscraig/python-packages/main/bin/devarmor | python3
+
+# Install from CLI
+devarmor install
+
+# Check for updates
+devarmor check
+
+# Upgrade
+devarmor upgrade
 ```
 
 ## Troubleshooting

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  generate-index:
+  test-and-generate-index:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,7 +20,25 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install wheel twine
+        run: pip install wheel twine pytest pytest-asyncio pytest-cov black ruff mypy bandit
+
+      - name: Test devarmor-core
+        run: |
+          cd packages/devarmor-core
+          python -m pytest tests/ --cov=src/devarmor --cov-report=term-missing --cov-fail-under=85 -v
+
+      - name: Check devarmor-core quality
+        run: |
+          cd packages/devarmor-core
+          python -m ruff check src/ tests/
+          python -m black --check src/ tests/
+          python -m mypy src/devarmor
+
+      - name: Build devarmor-core wheel
+        run: |
+          cd packages/devarmor-core
+          python -m pip wheel --no-deps --wheel-dir . .
+          python setup.py sdist
 
       - name: Generate PEP 503 compliant index
         run: |
@@ -44,7 +62,7 @@ jobs:
           # Generate index for each package
           if packages_dir.exists():
               for package_dir in sorted(packages_dir.iterdir()):
-                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                  if not package_dir.is_dir() or package_dir.name in ['__pycache__', '.gitkeep']:
                       continue
 
                   metadata_file = package_dir / 'metadata.json'
@@ -66,7 +84,11 @@ jobs:
           # Create per-package indexes
           if packages_dir.exists():
               for package_dir in sorted(packages_dir.iterdir()):
-                  if not package_dir.is_dir() or package_dir.name == '__pycache__':
+                  if not package_dir.is_dir() or package_dir.name in ['__pycache__', '.gitkeep']:
+                      continue
+
+                  metadata_file = package_dir / 'metadata.json'
+                  if not metadata_file.exists():
                       continue
 
                   pkg_html = f'''<!DOCTYPE html>

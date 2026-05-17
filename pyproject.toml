@@ -13,3 +13,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Software Distribution",
 ]
+
+[tool.setuptools]
+# Workspace configuration for monorepo structure
+packages = ["packages"]
+
+[project.optional-dependencies]
+# DevArmor Core integration (optional)
+devarmor = ["devarmor-core>=0.1.0"]
+# All optional packages
+all = ["devarmor-core>=0.1.0"]

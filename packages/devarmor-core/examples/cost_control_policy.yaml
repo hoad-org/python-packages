@@ -1,0 +1,109 @@
+# Cost Control Policy for Terrorgem Phase 0
+#
+# This policy enforces budget constraints for the Terrorgem MVP phase.
+# Budget: £3-6/month (300-600 pence)
+#
+# Usage:
+#   devarmor policy deploy ./cost_control_policy.yaml
+#   devarmor policy test cost_control --user=alice --cost=50 --monthly_spend=250
+
+name: TerrorgemCostControl
+version: "1.0.0"
+description: |
+  Enforce cost controls for Terrorgem Phase 0 deployment.
+
+  Budget: £3-6/month
+  - Enforced via monthly counter reset
+  - Tracks per-user spend
+  - Tracks per-project spend
+  - Warns on expensive operations
+enabled: true
+priority: 100
+
+# Cost tracking rules
+constraints:
+  # Monthly budget enforcement
+  - name: MonthlyBudgetLimit
+    rule: |
+      user.${user_id}.cost_this_month <= 600
+    action: deny
+    message: |
+      Monthly budget exceeded (limit: £6)
+      Used: £${user.${user_id}.cost_this_month / 100}
+    tags: [cost-control, billing, phase-0]
+    enabled: true
+
+  # Project-level spending limits
+  - name: ProjectBudgetLimit
+    rule: |
+      project.${project_id}.cost_this_month <= 100
+    action: warn
+    message: |
+      Project approaching budget limit
+      Used: £${project.${project_id}.cost_this_month / 100}/£1.00
+    tags: [cost-control, billing, phase-0]
+
+  # Warn on expensive single operations
+  - name: ExpensiveOperationWarning
+    rule: |
+      cost > 0
+    action: warn
+    message: |
+      Operation costs £${cost / 100}.
+      Monthly budget: £6.00 (used: £${user.${user_id}.cost_this_month / 100})
+    tags: [cost-control, user-awareness]
+
+  # Rate limit very expensive operations
+  - name: VeryExpensiveOperationThrottle
+    rule: |
+      cost > 50 AND user.${user_id}.requests_per_minute >= 10
+    action: rate_limit
+    message: "Expensive operations limited to 10 per minute"
+    rate_limit:
+      requests_per_minute: 10
+      burst_size: 2
+    tags: [cost-control, rate-limit]
+
+  # Prevent operations that would exceed budget
+  - name: BudgetExceededPrevention
+    rule: |
+      (user.${user_id}.cost_this_month + cost) > 600
+    action: deny
+    message: |
+      Operation would exceed monthly budget.
+      Current: £${user.${user_id}.cost_this_month / 100}
+      Operation: £${cost / 100}
+      Budget: £6.00
+    tags: [cost-control, budget-enforcement]
+
+# Variables for policy
+variables:
+  monthly_budget_pence: 600
+  project_budget_pence: 100
+  expensive_operation_threshold_pence: 50
+
+# Test cases
+test_cases:
+  - name: "User under budget - allow"
+    input:
+      user: alice@example.com
+      cost: 50
+      cost_this_month: 250
+      budget: 600
+    expected: ALLOW
+
+  - name: "User at budget - deny"
+    input:
+      user: alice@example.com
+      cost: 100
+      cost_this_month: 550
+      budget: 600
+    expected: DENY
+
+  - name: "Expensive operation - warn"
+    input:
+      user: alice@example.com
+      cost: 75
+      cost_this_month: 100
+      budget: 600
+    expected: WARN

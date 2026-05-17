@@ -1,0 +1,12 @@
+{
+  "name": "devarmor-core",
+  "version": "0.1.0",
+  "description": "Enterprise control plane for Claude skills with policy-driven enforcement, compliance automation, and cross-skill coordination.",
+  "python_requires": ">=3.9",
+  "repository": "https://github.com/rhyscraig/python-packages",
+  "published_at": "2026-05-17T12:52:35.455126Z",
+  "dependencies": [
+    "pydantic>=1.9.0,<3.0.0",
+    "pyyaml>=6.0"
+  ]
+}
