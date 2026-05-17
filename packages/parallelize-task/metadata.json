@@ -1,11 +1,12 @@
 {
   "name": "parallelize-task",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "repository": "https://github.com/hoad-org/claude-skill-parallelize-task",
-  "published_at": "2026-05-16T23:45:00Z",
-  "python_requires": ">=3.9",
+  "published_at": "2026-05-17T14:20:00Z",
+  "python_requires": ">=3.12",
+  "description": "Claude skill for intelligent task parallelization with Q1-Q6 decision engine, complexity scoring, DAG orchestration, performance optimization, and enterprise monitoring.",
   "distributions": [
-    "claude_skill_parallelize_task-1.0.0-py3-none-any.whl",
-    "claude_skill_parallelize_task-1.0.0.tar.gz"
+    "claude_skill_parallelize_task-1.1.0-py3-none-any.whl",
+    "claude_skill_parallelize_task-1.1.0.tar.gz"
   ]
 }
