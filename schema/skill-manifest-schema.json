@@ -1,0 +1,723 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devarmor.io/schema/skill-manifest-v1.0.0.json",
+  "title": "DevArmor Skill Manifest Schema",
+  "description": "Universal contract for all skills integrating with DevArmor control plane",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "pattern": "^devarmor\\.io/v[0-9]+$",
+      "description": "API version (devarmor.io/v1)"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["Skill"],
+      "description": "Resource kind"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "minLength": 3,
+          "maxLength": 63,
+          "description": "Unique skill identifier (kebab-case)"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+          "description": "Semantic version (e.g., 2.0.0)"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Human-readable skill name"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1024,
+          "description": "Detailed skill description"
+        },
+        "author": {
+          "type": "string",
+          "description": "Skill author or team"
+        },
+        "license": {
+          "type": "string",
+          "description": "License identifier (SPDX format)"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "description": "Git repository URL"
+        },
+        "documentation": {
+          "type": "string",
+          "format": "uri",
+          "description": "Documentation URL"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cloud",
+              "security",
+              "automation",
+              "monitoring",
+              "integration",
+              "data",
+              "development",
+              "operations"
+            ]
+          },
+          "minItems": 1,
+          "description": "Skill categories for discovery"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional tags for discovery"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["capabilities", "security"],
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "type": "object",
+          "description": "Skill actions and queries",
+          "required": ["actions"],
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "type": "array",
+              "description": "Mutable operations the skill can perform",
+              "items": {
+                "type": "object",
+                "required": ["name", "description", "input"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "description": "Action identifier"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Action description"
+                  },
+                  "input": {
+                    "type": "object",
+                    "description": "JSON Schema for action parameters",
+                    "properties": {
+                      "type": { "type": "string" },
+                      "properties": { "type": "object" },
+                      "required": { "type": "array" }
+                    }
+                  },
+                  "output": {
+                    "type": "object",
+                    "description": "JSON Schema for action result"
+                  },
+                  "idempotent": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Safe to retry without side effects"
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600,
+                    "default": 300,
+                    "description": "Max execution seconds"
+                  },
+                  "rateLimit": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "requestsPerMinute": { "type": "integer", "minimum": 1 },
+                      "requestsPerHour": { "type": "integer", "minimum": 1 },
+                      "burstSize": { "type": "integer", "minimum": 1 }
+                    }
+                  }
+                }
+              }
+            },
+            "queries": {
+              "type": "array",
+              "description": "Read-only data access operations",
+              "items": {
+                "type": "object",
+                "required": ["name", "description", "output"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "object",
+                    "description": "Query parameters schema"
+                  },
+                  "output": {
+                    "type": "object",
+                    "description": "JSON Schema for query result"
+                  },
+                  "cache": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "ttlSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 300
+                      },
+                      "keyPattern": {
+                        "type": "string",
+                        "description": "Cache key template using {param} syntax"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "object",
+          "description": "Event publishing and subscription",
+          "additionalProperties": false,
+          "properties": {
+            "publishes": {
+              "type": "array",
+              "description": "Events this skill emits",
+              "items": {
+                "type": "object",
+                "required": ["name", "description"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+\\.[a-z0-9]+(\\.[a-z0-9]+)*$",
+                    "description": "Event name (e.g., repo.created)"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "schema": {
+                    "type": "object",
+                    "description": "JSON Schema for event payload"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": ["info", "warning", "error", "critical"],
+                    "default": "info"
+                  }
+                }
+              }
+            },
+            "subscribes": {
+              "type": "array",
+              "description": "Events this skill processes",
+              "items": {
+                "type": "object",
+                "required": ["name", "handler"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+\\.[a-z0-9]+(\\.[a-z0-9]+)*$",
+                    "description": "Event name pattern (supports wildcards)"
+                  },
+                  "handler": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "description": "Handler method name"
+                  },
+                  "filter": {
+                    "type": "object",
+                    "description": "Optional CEL expression for filtering"
+                  },
+                  "retryPolicy": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "maxRetries": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": 3
+                      },
+                      "backoffMultiplier": {
+                        "type": "number",
+                        "minimum": 1.0,
+                        "default": 2.0
+                      },
+                      "initialDelayMs": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "default": 1000
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "state": {
+          "type": "object",
+          "description": "Persistent and cross-skill state",
+          "additionalProperties": false,
+          "properties": {
+            "maintains": {
+              "type": "array",
+              "description": "State this skill manages",
+              "items": {
+                "type": "object",
+                "required": ["name", "schema"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "schema": {
+                    "type": "object",
+                    "description": "JSON Schema for state object"
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Auto-expiry TTL"
+                  },
+                  "indexed": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Fields to index for querying"
+                  }
+                }
+              }
+            },
+            "shares": {
+              "type": "array",
+              "description": "State shared with other skills",
+              "items": {
+                "type": "object",
+                "required": ["name", "schema"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["read", "write", "delete"]
+                    },
+                    "default": ["read"]
+                  },
+                  "consistencyLevel": {
+                    "type": "string",
+                    "enum": ["strong", "eventual"],
+                    "default": "eventual"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "configuration": {
+          "type": "object",
+          "description": "Configuration schema and defaults",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "type": "object",
+              "description": "JSON Schema for configuration object"
+            },
+            "defaults": {
+              "type": "object",
+              "description": "Default configuration values"
+            },
+            "hierarchy": {
+              "type": "array",
+              "description": "Configuration source priority (highest to lowest)",
+              "items": {
+                "type": "string",
+                "enum": ["environment", "repo", "master", "code"]
+              },
+              "default": ["environment", "repo", "master", "code"]
+            },
+            "secrets": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Configuration keys that should be vaulted"
+            }
+          }
+        },
+        "policies": {
+          "type": "object",
+          "description": "Policy enforcement",
+          "additionalProperties": false,
+          "properties": {
+            "requires": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Policies that must be satisfied"
+            },
+            "enforces": {
+              "type": "array",
+              "description": "Policies this skill enforces on others",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "enum": ["cost", "security", "compliance", "performance", "custom"]
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": { "type": "object" }
+                  }
+                }
+              }
+            },
+            "validates": {
+              "type": "array",
+              "description": "Events/actions to validate before execution",
+              "items": {
+                "type": "object",
+                "required": ["target", "rule"],
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "description": "Action or event name"
+                  },
+                  "rule": {
+                    "type": "string",
+                    "description": "CEL expression for validation"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": ["ALLOW", "DENY", "WARN", "RATE_LIMIT", "AUDIT"],
+                    "default": "DENY"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Required skills and versions",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Skill name"
+              },
+              "version": {
+                "type": "string",
+                "description": "Version constraint (semver range)"
+              },
+              "optional": {
+                "type": "boolean",
+                "default": false,
+                "description": "Graceful degradation if unavailable"
+              },
+              "requires": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Specific capabilities required"
+              }
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "description": "Security isolation and permissions",
+          "required": ["isolation"],
+          "additionalProperties": false,
+          "properties": {
+            "isolation": {
+              "type": "object",
+              "description": "Process and network isolation",
+              "additionalProperties": false,
+              "properties": {
+                "processLevel": {
+                  "type": "string",
+                  "enum": ["inline", "subprocess", "container"],
+                  "default": "subprocess",
+                  "description": "Execution isolation level"
+                },
+                "resourceLimits": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "cpuMillis": { "type": "integer", "minimum": 100 },
+                    "memoryMb": { "type": "integer", "minimum": 64 },
+                    "maxFiles": { "type": "integer", "minimum": 1 }
+                  }
+                },
+                "networkRules": {
+                  "type": "array",
+                  "description": "Allowed network destinations",
+                  "items": {
+                    "type": "object",
+                    "required": ["protocol", "destination"],
+                    "properties": {
+                      "protocol": { "type": "string" },
+                      "destination": { "type": "string" },
+                      "port": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            },
+            "permissions": {
+              "type": "array",
+              "description": "Required permissions",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "filesystem:read",
+                  "filesystem:write",
+                  "filesystem:delete",
+                  "network:outbound",
+                  "secrets:read",
+                  "state:read",
+                  "state:write",
+                  "events:publish",
+                  "events:subscribe"
+                ]
+              }
+            },
+            "authentication": {
+              "type": "array",
+              "description": "Auth methods required",
+              "items": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["apikey", "oauth2", "jwt", "mtls", "basic"]
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "health": {
+          "type": "object",
+          "description": "Health check configuration",
+          "additionalProperties": false,
+          "properties": {
+            "startupProbe": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "handler": { "type": "string" },
+                "timeoutSeconds": { "type": "integer", "default": 30 },
+                "periodSeconds": { "type": "integer", "default": 10 }
+              }
+            },
+            "readinessProbe": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "handler": { "type": "string" },
+                "timeoutSeconds": { "type": "integer", "default": 5 },
+                "periodSeconds": { "type": "integer", "default": 30 }
+              }
+            },
+            "livenessProbe": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "handler": { "type": "string" },
+                "timeoutSeconds": { "type": "integer", "default": 5 },
+                "periodSeconds": { "type": "integer", "default": 60 }
+              }
+            }
+          }
+        },
+        "observability": {
+          "type": "object",
+          "description": "Metrics, tracing, and logging",
+          "additionalProperties": false,
+          "properties": {
+            "metrics": {
+              "type": "array",
+              "description": "Metrics exported by skill",
+              "items": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "enum": ["counter", "gauge", "histogram", "summary"]
+                  },
+                  "help": { "type": "string" },
+                  "labels": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "tracing": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean", "default": true },
+                "samplingRate": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 }
+              }
+            },
+            "logging": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": ["debug", "info", "warn", "error"],
+                  "default": "info"
+                },
+                "format": {
+                  "type": "string",
+                  "enum": ["json", "text"],
+                  "default": "json"
+                }
+              }
+            }
+          }
+        },
+        "deployment": {
+          "type": "object",
+          "description": "Deployment configuration",
+          "additionalProperties": false,
+          "properties": {
+            "replicas": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Desired replica count"
+            },
+            "upgradeStrategy": {
+              "type": "string",
+              "enum": ["rolling", "canary", "blue-green"],
+              "default": "rolling",
+              "description": "Upgrade rollout strategy"
+            },
+            "updatePolicy": {
+              "type": "string",
+              "enum": ["immediate", "scheduled", "manual"],
+              "default": "manual"
+            },
+            "scheduling": {
+              "type": "object",
+              "description": "Kubernetes-style scheduling",
+              "properties": {
+                "nodeSelector": { "type": "object" },
+                "tolerations": { "type": "array" },
+                "affinity": { "type": "object" }
+              }
+            }
+          }
+        },
+        "testing": {
+          "type": "object",
+          "description": "Testing configuration",
+          "additionalProperties": false,
+          "properties": {
+            "minimumCoverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 85,
+              "description": "Minimum code coverage percentage"
+            },
+            "testTypes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["unit", "integration", "e2e", "performance", "security"]
+              },
+              "default": ["unit", "integration"]
+            },
+            "frameworks": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Testing frameworks used (pytest, jest, etc.)"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 300,
+              "description": "Test suite timeout in seconds"
+            }
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "description": "Version and platform compatibility",
+          "additionalProperties": false,
+          "properties": {
+            "devarmor": {
+              "type": "string",
+              "description": "DevArmor version constraint (semver range)"
+            },
+            "python": {
+              "type": "string",
+              "description": "Python version constraint"
+            },
+            "platforms": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64", "windows-amd64"]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,489 @@
+apiVersion: devarmor.io/v1
+kind: Skill
+metadata:
+  name: github-skill
+  version: 2.0.0
+  displayName: GitHub Operations
+  description: Comprehensive GitHub repository and workflow management skill with advanced CI/CD integration
+  author: DevArmor Team
+  license: MIT
+  repository: https://github.com/hoad-org/github-skill
+  documentation: https://devarmor.io/skills/github
+  categories:
+    - development
+    - automation
+    - integration
+  tags:
+    - github
+    - repositories
+    - workflows
+    - ci-cd
+
+spec:
+  capabilities:
+    actions:
+      - name: create_repository
+        description: Create a new GitHub repository
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+              description: Organization name
+            name:
+              type: string
+              description: Repository name
+            private:
+              type: boolean
+              default: false
+            description:
+              type: string
+          required: [org, name]
+        output:
+          type: object
+          properties:
+            repo_id:
+              type: string
+            url:
+              type: string
+            clone_url:
+              type: string
+        idempotent: false
+        timeout: 30
+        rateLimit:
+          requestsPerMinute: 10
+
+      - name: delete_repository
+        description: Delete a GitHub repository
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+          required: [org, repo]
+        output:
+          type: object
+          properties:
+            success:
+              type: boolean
+        idempotent: false
+        timeout: 30
+
+      - name: trigger_workflow
+        description: Trigger a GitHub Actions workflow
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            workflow_id:
+              type: string
+            ref:
+              type: string
+              default: main
+            inputs:
+              type: object
+          required: [org, repo, workflow_id]
+        output:
+          type: object
+          properties:
+            run_id:
+              type: string
+            status:
+              type: string
+        idempotent: true
+        timeout: 60
+
+      - name: deploy_version
+        description: Deploy a specific version to production
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            version:
+              type: string
+            environment:
+              type: string
+          required: [org, repo, version]
+        output:
+          type: object
+          properties:
+            deployment_id:
+              type: string
+            status:
+              type: string
+        idempotent: false
+        timeout: 300
+
+    queries:
+      - name: list_repositories
+        description: List all repositories in organization
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            filter:
+              type: string
+          required: [org]
+        output:
+          type: object
+          properties:
+            repositories:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  url:
+                    type: string
+                  stars:
+                    type: integer
+        cache:
+          ttlSeconds: 3600
+          keyPattern: "repos:{org}"
+
+      - name: get_deployment_status
+        description: Get current deployment status
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            environment:
+              type: string
+          required: [org, repo]
+        output:
+          type: object
+          properties:
+            current_version:
+              type: string
+            status:
+              type: string
+            last_deployed:
+              type: string
+        cache:
+          ttlSeconds: 300
+          keyPattern: "deployment:{org}:{repo}"
+
+      - name: list_workflows
+        description: List CI/CD workflows
+        input:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+          required: [org, repo]
+        output:
+          type: object
+          properties:
+            workflows:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  status:
+                    type: string
+
+  events:
+    publishes:
+      - name: github.repo.created
+        description: Fired when a new repository is created
+        severity: info
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            url:
+              type: string
+
+      - name: github.repo.deleted
+        description: Fired when a repository is deleted
+        severity: warning
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+
+      - name: github.workflow.triggered
+        description: Fired when a workflow is triggered
+        severity: info
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            workflow_id:
+              type: string
+            run_id:
+              type: string
+
+      - name: github.deployment.started
+        description: Fired when deployment starts
+        severity: info
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            version:
+              type: string
+            environment:
+              type: string
+
+      - name: github.deployment.completed
+        description: Fired when deployment completes
+        severity: info
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            version:
+              type: string
+            status:
+              type: string
+
+    subscribes:
+      - name: jira.issue.created
+        handler: on_jira_issue_created
+        filter: "issue.type == 'Task'"
+        retryPolicy:
+          maxRetries: 3
+          backoffMultiplier: 2.0
+
+      - name: devops.cost-alert
+        handler: on_cost_alert
+        retryPolicy:
+          maxRetries: 5
+
+  state:
+    maintains:
+      - name: repositories
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            url:
+              type: string
+            config:
+              type: object
+        ttlSeconds: 86400
+        indexed: [org, repo]
+
+      - name: deployments
+        schema:
+          type: object
+          properties:
+            org:
+              type: string
+            repo:
+              type: string
+            version:
+              type: string
+            status:
+              type: string
+            timestamp:
+              type: string
+        ttlSeconds: 2592000
+        indexed: [org, repo, status]
+
+    shares:
+      - name: deployment_status
+        schema:
+          type: object
+          properties:
+            current_version:
+              type: string
+            status:
+              type: string
+            environment:
+              type: string
+        permissions: [read]
+        consistencyLevel: strong
+
+      - name: repository_metadata
+        schema:
+          type: object
+          properties:
+            owner:
+              type: string
+            name:
+              type: string
+            url:
+              type: string
+        permissions: [read, write]
+        consistencyLevel: eventual
+
+  configuration:
+    schema:
+      type: object
+      properties:
+        github_token:
+          type: string
+          description: GitHub API token
+        github_org:
+          type: string
+          description: Default organization
+        default_environment:
+          type: string
+          default: staging
+        webhook_secret:
+          type: string
+        api_base_url:
+          type: string
+          default: https://api.github.com
+    defaults:
+      default_environment: staging
+      api_base_url: https://api.github.com
+    secrets:
+      - github_token
+      - webhook_secret
+
+  policies:
+    requires:
+      - cost_control
+      - security
+    enforces:
+      - name: api_rate_limit
+        description: Enforce GitHub API rate limits
+        type: custom
+        rules:
+          - action: RATE_LIMIT
+            limit: "100 requests/minute"
+      - name: cost_budget
+        description: Enforce deployment cost budget
+        type: cost
+        rules:
+          - action: WARN
+            threshold: "$100/day"
+    validates:
+      - target: delete_repository
+        rule: "request.org in ['approved-deletion-orgs']"
+        action: WARN
+      - target: deploy_version
+        rule: "request.version matches '^v\\d+\\.\\d+\\.\\d+$'"
+        action: DENY
+
+  dependencies:
+    - name: jira-skill
+      version: ">=3.0.0"
+      optional: true
+      requires: [create_issue]
+    - name: green-skill
+      version: ">=1.0.0"
+      optional: false
+      requires: [check_environmental_impact]
+
+  security:
+    isolation:
+      processLevel: subprocess
+      resourceLimits:
+        cpuMillis: 1000
+        memoryMb: 512
+        maxFiles: 100
+      networkRules:
+        - protocol: https
+          destination: api.github.com
+          port: 443
+        - protocol: https
+          destination: github.com
+          port: 443
+    permissions:
+      - network:outbound
+      - secrets:read
+      - state:read
+      - state:write
+      - events:publish
+      - events:subscribe
+    authentication:
+      - type: apikey
+        scopes: [repo, workflow, admin:repo_hook]
+
+  health:
+    startupProbe:
+      handler: check_github_connection
+      timeoutSeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      handler: check_api_availability
+      timeoutSeconds: 5
+      periodSeconds: 30
+    livenessProbe:
+      handler: check_webhook_connectivity
+      timeoutSeconds: 5
+      periodSeconds: 60
+
+  observability:
+    metrics:
+      - name: github_api_calls_total
+        type: counter
+        help: Total GitHub API calls made
+        labels: [operation, org, repo]
+      - name: github_deployment_duration_seconds
+        type: histogram
+        help: Deployment duration in seconds
+        labels: [org, repo, status]
+      - name: github_workflow_queue_depth
+        type: gauge
+        help: Number of pending workflow runs
+        labels: [org, repo]
+    tracing:
+      enabled: true
+      samplingRate: 0.1
+    logging:
+      level: info
+      format: json
+
+  deployment:
+    replicas: 2
+    upgradeStrategy: rolling
+    updatePolicy: manual
+    scheduling:
+      nodeSelector:
+        workload: integration
+
+  testing:
+    minimumCoverage: 85
+    testTypes: [unit, integration, e2e]
+    frameworks: [pytest]
+    timeout: 600
+
+  compatibility:
+    devarmor: ">=1.0.0"
+    python: ">=3.9"
+    platforms:
+      - linux-amd64
+      - macos-amd64
+      - macos-arm64
